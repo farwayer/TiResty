@@ -239,7 +239,7 @@ localUpdate = (entity, reset) ->
 
     info 'wrote in', prof.tick()
 
-  return entity
+  return entity.toJSON()
 
 
 # localDelete
@@ -248,6 +248,8 @@ localDelete = (entity) ->
 
   dbExecute dbName, no, (db) ->
     sqlDeleteModel(db, table, entity)
+
+  return entity.toJSON()
 
 
 # sql
