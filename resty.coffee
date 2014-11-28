@@ -181,6 +181,7 @@ request = (options) ->
 
 # local read
 localRead = (entity) ->
+  # TODO: use SQL.sync() when next version will be released
   [dbName, table] = getEntityDBConfig(entity)
   isCollection = entity instanceof Alloy.Backbone.Collection
 
