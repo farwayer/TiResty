@@ -58,7 +58,7 @@ remote = (method, entity, options) ->
   remoteSync(method, entity, options)
 
 
-# Model.Local
+# Mode.Local
 local = (method, entity, options) ->
   success = options.success
 
