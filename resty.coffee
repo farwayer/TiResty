@@ -120,7 +120,7 @@ localSync = (method, entity, options) ->
     when 'create', 'update' then localUpdate(entity, !options.add)
     when 'delete' then localDelete(entity)
 
-  info resp.length
+  info 'localSync', resp.length
   if resp
     info "local #{method} ok"
     options.success?(resp, 'local', null)
@@ -184,26 +184,31 @@ localRead = (entity) ->
   [dbName, table] = getEntityDBConfig(entity)
   isCollection = entity instanceof Alloy.Backbone.Collection
 
+  condition = if isCollection then "" else "WHERE #{entity.idAttribute}=?"
+  sql = "SELECT * FROM #{table} #{condition};"
+
   dbExecute dbName, no, (db) ->
-    prof = new Profiler()
+    rs = if isCollection
+      db.execute(sql)
+    else
+      db.execute(sql, entity.id)
+
+    columns = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
+
+    resp = while rs.isValidRow()
+      attrs = {}
+      for i in [0...rs.fieldCount] by 1
+        attrs[columns[i]] = rs.field(i)
+      rs.next()
+      attrs
+
+    rs.close()
 
     if isCollection
-      sql = "SELECT * FROM #{table};"
-      rs = db.execute(sql)
-
-      obj = {}
-      resp = while rs.isValidRow()
-        for i in [0...rs.fieldCount] by 1
-          name = rs.fieldName(i)
-          obj[name] = rs.field(i)
-        rs.next()
-        obj
-
-      rs.close()
       entity.length = resp.length
-
-      info 'read in', prof.tick()
       return resp
+    else
+      return resp[0]
 
 
 # local update, create
