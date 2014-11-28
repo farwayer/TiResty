@@ -221,11 +221,7 @@ localRead = (entity) ->
 
     rs.close()
 
-    if isCollection
-      entity.length = resp.length
-      return resp
-    else
-      return resp[0]
+    return if isCollection then resp else resp[0]
 
 
 # local update, create
