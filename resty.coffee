@@ -8,7 +8,7 @@ Mode =
   Local: 4        # local sync; remote sync if success
   RemoteFirst: 5  # try to sync remote first; 'LocalOnly' as fallback
   LocalFirst: 6   # try to sync local first; 'Remote' as fallback
-                  # (update failed or local storage is empty)
+                  # (in this mode 'read' empty local will initiate 'Remote')
 
 handlers = {}
 initHandlers = ->
@@ -86,10 +86,21 @@ remoteFirst = (method, entity, options) ->
 # Mode.LocalFirst
 localFirst = (method, entity, options) ->
   error = options.error
+  success = options.success
 
-  options.error = ->
+  makeRemote = ->
+    options.success = success
     options.error = error
     remote(method, entity, options)
+
+  options.error = ->
+    makeRemote()
+
+  options.success = (resp, status, options) ->
+    if method is 'read' and resp.length is 0
+      return makeRemote()
+
+    success?(resp, status, options)
 
   localOnly(method, entity, options)
 
@@ -115,6 +126,7 @@ remoteSync = (method, entity, options) ->
 localSync = (method, entity, options) ->
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
 
+  info 'localSync before', entity.length
   makeQuery = ->
     info "local #{method}..."
     resp = switch method
@@ -122,7 +134,7 @@ localSync = (method, entity, options) ->
       when 'create', 'update' then localUpdate(entity, !options.add)
       when 'delete' then localDelete(entity)
 
-    info 'localSync', resp.length
+    info 'localSync after', resp.length
     if resp
       info "local #{method} ok"
       options.success?(resp, 'local', null)
