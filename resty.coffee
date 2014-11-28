@@ -113,20 +113,24 @@ remoteSync = (method, entity, options) ->
 
 # local sync
 localSync = (method, entity, options) ->
-  info "local #{method}..."
+  async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
 
-  resp = switch method
-    when 'read' then localRead(entity)
-    when 'create', 'update' then localUpdate(entity, !options.add)
-    when 'delete' then localDelete(entity)
+  makeQuery = ->
+    info "local #{method}..."
+    resp = switch method
+      when 'read' then localRead(entity)
+      when 'create', 'update' then localUpdate(entity, !options.add)
+      when 'delete' then localDelete(entity)
 
-  info 'localSync', resp.length
-  if resp
-    info "local #{method} ok"
-    options.success?(resp, 'local', null)
-  else
-    info "local #{method} error"
-    options.error?()
+    info 'localSync', resp.length
+    if resp
+      info "local #{method} ok"
+      options.success?(resp, 'local', null)
+    else
+      info "local #{method} error"
+      options.error?()
+
+  if async then setTimeout(makeQuery, 0) else makeQuery()
 
 
 # request
