@@ -321,8 +321,12 @@ getMode = (options) ->
   mode = _.result(options, 'mode')
   if _.isString(mode) then Mode[mode] else mode
 
+
 initHandlers()
-Alloy.Backbone.setDomLibrary(ajax: request)
+if Alloy.Backbone.VERSION is '0.9.2'
+  Alloy.Backbone.setDomLibrary(ajax: request)
+else
+  Alloy.Backbone.ajax = request
 
 module.exports.Mode = Mode
 module.exports.sync = sync
