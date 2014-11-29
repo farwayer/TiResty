@@ -209,7 +209,7 @@ localRead = (entity, query) ->
   else
     sql = if query then [query] else null
 
-  sql = sql or if isCollection
+  sql or= if isCollection
     ["SELECT * FROM #{table};"]
   else
     ["SELECT * FROM #{table} WHERE #{entity.idAttribute}=?;", entity.id]
