@@ -203,8 +203,8 @@ localRead = (entity, query) ->
   isCollection = entity instanceof Alloy.Backbone.Collection
 
   if _.isObject(query)
-    statement = _.result(query, 'statement')
-    sql = _.result(query, 'params') or []
+    statement = _.result(query, 'statement') or _.result(query, 'text')
+    sql = _.result(query, 'params') or _.result(query, 'values') or []
     sql.unshift(statement)
   else
     sql = if query then [query] else null
