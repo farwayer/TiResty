@@ -93,8 +93,7 @@ localFirst = (method, entity, options) ->
     options.error = error
     remote(method, entity, options)
 
-  options.error = ->
-    makeRemote()
+  options.error = makeRemote
 
   options.success = (resp, status, options) ->
     if method is 'read' and resp.length is 0
