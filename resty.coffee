@@ -21,8 +21,8 @@ initHandlers = ->
 
 
 sync = (method, entity, options) ->
-  optionsMode = _.result(options, 'mode')
-  configMode = _.result(entity.config.adapter, 'mode')
+  optionsMode = getMode(options)
+  configMode = getMode(entity.config.adapter)
   mode = optionsMode or configMode or Mode.RemoteFirst
 
   unless handler = handlers[mode]
@@ -285,7 +285,7 @@ sqlDeleteModel = (db, table, model) ->
   db.execute(query, model.id)
 
 
-# local helpers
+# helpers
 getEntityDBConfig = (entity) ->
   adapter = entity.config.adapter
   dbName = adapter.db_name or ALLOY_DB_DEFAULT
@@ -307,7 +307,6 @@ guid = ->
   Math.random().toString(36) + Math.random().toString(36)
 
 
-# remote helpers
 addUrlParams = (url, urlparams) ->
   urlparams = (for param, value of urlparams
     "#{encodeURIComponent(param)}=#{encodeURIComponent(value)}"
@@ -317,6 +316,10 @@ addUrlParams = (url, urlparams) ->
   delimiter = if url.indexOf('?') is -1 then '?' else '&'
   return url + delimiter + urlparams
 
+
+getMode = (options) ->
+  mode = _.result(options, 'mode')
+  if _.isString(mode) then Mode[mode] else mode
 
 initHandlers()
 Alloy.Backbone.setDomLibrary(ajax: request)
