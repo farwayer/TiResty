@@ -1,4 +1,4 @@
-SQL = require('alloy/sync/sql')
+SQLAdapter = require('alloy/sync/sql')
 
 
 Mode =
@@ -8,7 +8,7 @@ Mode =
   Local: 4        # local sync; remote sync if success
   RemoteFirst: 5  # try to sync remote first; 'LocalOnly' as fallback
   LocalFirst: 6   # try to sync local first; 'Remote' as fallback
-                  # (in this mode 'read' empty local will initiate 'Remote')
+                  # (in this mode fetch empty local will initiate 'Remote')
 
 handlers = {}
 initHandlers = ->
@@ -123,15 +123,17 @@ remoteSync = (method, entity, options) ->
 
 # local sync
 localSync = (method, entity, options) ->
+  query = _.result(options, 'query')
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
+  reset = !options.add
 
   info 'localSync before', entity.length
   makeQuery = ->
     info "local #{method}..."
     resp = switch method
-      when 'read' then localRead(entity)
-      when 'create', 'update' then localUpdate(entity, !options.add)
-      when 'delete' then localDelete(entity)
+      when 'read' then localRead(entity, query)
+      when 'create', 'update' then localUpdate(entity, query, reset)
+      when 'delete' then localDelete(entity, query)
 
     info 'localSync after', resp.length
     if resp
@@ -195,26 +197,31 @@ request = (options) ->
 
 
 # local read
-localRead = (entity) ->
-  # TODO: use SQL.sync() when next version will be released
+localRead = (entity, query) ->
   [dbName, table] = getEntityDBConfig(entity)
   isCollection = entity instanceof Alloy.Backbone.Collection
 
-  condition = if isCollection then "" else "WHERE #{entity.idAttribute}=?"
-  sql = "SELECT * FROM #{table} #{condition};"
+  if _.isObject(query)
+    statement = _.result(query, 'statement')
+    sql = _.result(query, 'params') or []
+    sql.unshift(statement)
+  else
+    sql = if query then [query] else null
+
+  sql = sql or if isCollection
+    ["SELECT * FROM #{table};"]
+  else
+    ["SELECT * FROM #{table} WHERE #{entity.idAttribute}=?;", entity.id]
 
   dbExecute dbName, no, (db) ->
-    rs = if isCollection
-      db.execute(sql)
-    else
-      db.execute(sql, entity.id)
+    rs = db.execute.apply(db, sql)
 
-    columns = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
+    fields = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
 
     resp = while rs.isValidRow()
       attrs = {}
       for i in [0...rs.fieldCount] by 1
-        attrs[columns[i]] = rs.field(i)
+        attrs[fields[i]] = rs.field(i)
       rs.next()
       attrs
 
@@ -224,7 +231,7 @@ localRead = (entity) ->
 
 
 # local update, create
-localUpdate = (entity, reset) ->
+localUpdate = (entity, query, reset) ->
   [dbName, table] = getEntityDBConfig(entity)
   columns = Object.keys(entity.config.columns)
   isCollection = entity instanceof Alloy.Backbone.Collection
@@ -234,7 +241,7 @@ localUpdate = (entity, reset) ->
   # for optimization
   sqlQ = Array(columns.length + 1).join('?').split('').join(',')
   sqlColumns = columns.join(',')
-  sql = "REPLACE INTO #{table} (#{sqlColumns}) VALUES (#{sqlQ});"
+  query = "REPLACE INTO #{table} (#{sqlColumns}) VALUES (#{sqlQ});"
 
   dbExecute dbName, yes, (db) ->
     sqlDeleteAll(db, table) if reset
@@ -242,7 +249,7 @@ localUpdate = (entity, reset) ->
     prof = new Profiler()
 
     models.map (model) ->
-      sqlSaveModel(db, model, columns, sql)
+      sqlSaveModel(db, model, columns, query)
 
     info 'wrote in', prof.tick()
 
@@ -250,7 +257,7 @@ localUpdate = (entity, reset) ->
 
 
 # localDelete
-localDelete = (entity) ->
+localDelete = (entity, query) ->
   [dbName, table] = getEntityDBConfig(entity)
 
   dbExecute dbName, no, (db) ->
@@ -260,22 +267,22 @@ localDelete = (entity) ->
 
 
 # sql
-sqlSaveModel = (db, model, columns, sql) ->
+sqlSaveModel = (db, model, columns, query) ->
   unless model.id
     model.set(model.idAttribute, guid(), silent: yes)
 
   values = columns.map(model.get, model)
-  db.execute(sql, values)
+  db.execute(query, values)
 
 
 sqlDeleteAll = (db, table) ->
-  sql = "DELETE FROM #{table};"
-  db.execute(sql)
+  query = "DELETE FROM #{table};"
+  db.execute(query)
 
 
 sqlDeleteModel = (db, table, model) ->
-  sql = "DELETE FROM #{table} WHERE #{model.idAttribute}=?;"
-  db.execute(sql, model.id)
+  query = "DELETE FROM #{table} WHERE #{model.idAttribute}=?;"
+  db.execute(query, model.id)
 
 
 # local helpers
@@ -316,5 +323,5 @@ Alloy.Backbone.setDomLibrary(ajax: request)
 
 module.exports.Mode = Mode
 module.exports.sync = sync
-module.exports.beforeModelCreate = SQL.beforeModelCreate
-module.exports.afterModelCreate = SQL.afterModelCreate
+module.exports.beforeModelCreate = SQLAdapter.beforeModelCreate
+module.exports.afterModelCreate = SQLAdapter.afterModelCreate
