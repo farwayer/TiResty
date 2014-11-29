@@ -29,6 +29,7 @@ sync = (method, entity, options) ->
     throw "Invalid mode #{mode}"
 
   handler(method, entity, options)
+  return entity
 
 
 # Mode.RemoteOnly
