@@ -97,6 +97,7 @@ localFirst = (method, entity, options) ->
 
 # remote sync
 remoteSync = (method, entity, options) ->
+  rootObject = options.rootObject ? entity.config.adapter.rootObject
   success = options.success
   error = options.error
 
@@ -112,6 +113,7 @@ remoteSync = (method, entity, options) ->
   prof = new Profiler()
 
   options.success = (resp, status, xhr) ->
+    resp = rootObject(resp, options) if rootObject
     info "remote #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
     success?(resp, status, xhr)
     info "remote parsing complete in", prof.tick()
@@ -250,6 +252,7 @@ localUpdate = (entity, query, reset) ->
     models.map (model) ->
       sqlSaveModel(db, table, model, columns)
 
+  info entity.toJSON() unless isCollection
   return entity.toJSON()
 
 
@@ -264,7 +267,7 @@ localDelete = (entity, query) ->
 
 
 # sql
-sqlSaveModel = (db, table, model, columns) ->
+sqlSaveModel = (db, table, model, fields) ->
   # TODO: optimize
   unless model.id
     model.set(model.idAttribute, guid(), silent: yes)
@@ -275,7 +278,9 @@ sqlSaveModel = (db, table, model, columns) ->
   sqlSet = fields.map((column) -> column + '=?').join(',')
 
   insert = "INSERT OR IGNORE INTO #{table} (#{sqlFields}) VALUES (#{sqlQ});"
-  update = "UPDATE #{table} SET #{sqlSet} WHERE CHANGES()=0 AND #{model.idAttribute}=?;"
+  update = "
+    UPDATE #{table} SET #{sqlSet} WHERE CHANGES()=0 AND #{model.idAttribute}=?;
+  "
 
   values = fields.map(model.get, model)
   db.execute(insert, values)
