@@ -239,21 +239,15 @@ localRead = (entity, query) ->
 # local update, create
 localUpdate = (entity, query, reset) ->
   [dbName, table] = getEntityDBConfig(entity)
-  columns = Object.keys(entity.config.columns)
   isCollection = entity instanceof Alloy.Backbone.Collection
 
   models = if isCollection then entity.models else [entity]
-
-  # for optimization
-  sqlQ = Array(columns.length + 1).join('?').split('').join(',')
-  sqlColumns = columns.join(',')
-  query = "REPLACE INTO #{table} (#{sqlColumns}) VALUES (#{sqlQ});"
 
   dbExecute dbName, yes, (db) ->
     sqlDeleteAll(db, table) if reset
 
     models.map (model) ->
-      sqlSaveModel(db, model, columns, query)
+      sqlSaveModel(db, model, table)
 
   return entity.toJSON()
 
@@ -269,12 +263,24 @@ localDelete = (entity, query) ->
 
 
 # sql
-sqlSaveModel = (db, model, columns, query) ->
+sqlSaveModel = (db, model, table) ->
+  # TODO: optimize
   unless model.id
     model.set(model.idAttribute, guid(), silent: yes)
 
-  values = columns.map(model.get, model)
-  db.execute(query, values)
+  fields = _.intersection(model.keys(), columns)
+  sqlQ = Array(fields.length + 1).join('?').split('').join(',')
+  sqlColumns = fields.join(',')
+  sqlSet = fields.map((column) -> column + '=?') .join(',')
+
+  insert = "INSERT OR IGNORE INTO #{table} (#{sqlColumns}) VALUES (#{sqlQ});"
+  update = "UPDATE #{table} SET #{sqlSet} WHERE CHANGES()=0 AND #{model.idAttribute}=?;"
+
+  values = fields.map(model.get, model)
+  db.execute(insert, values)
+
+  values.push(model.id)
+  db.execute(update, values)
 
 
 sqlDeleteAll = (db, table) ->
