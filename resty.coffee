@@ -28,6 +28,7 @@ sync = (method, entity, options) ->
   unless handler = handlers[mode]
     throw "Invalid mode #{mode}"
 
+  info "sync in '#{_.invert(Mode)[mode]}' mode"
   handler(method, entity, options)
   return entity
 
@@ -137,20 +138,21 @@ localSync = (method, entity, options) ->
 
   options.parse = no
 
-  info 'localSync before', entity.length
   makeQuery = ->
-    info "local #{method}..."
+    name = entity.config.adapter.collection_name
+    info "local #{method} '#{name}': #{JSON.stringify(query) or 'default'} ..."
+    prof = new Profiler()
+
     resp = switch method
       when 'read' then localRead(entity, query)
       when 'create', 'update' then localUpdate(entity, query, reset)
       when 'delete' then localDelete(entity, query)
 
-    info 'localSync after', resp.length
     if resp
-      info "local #{method} ok"
+      info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values"
       options.success?(resp, 'local', null)
     else
-      info "local #{method} error"
+      info "local #{method} failed in #{prof.tick()}"
       options.error?()
 
   if async then setTimeout(makeQuery, 0) else makeQuery()
