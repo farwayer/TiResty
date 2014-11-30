@@ -115,9 +115,10 @@ remoteSync = (method, entity, options) ->
   success = options.success
   error = options.error
 
+  options.parse = yes
+
   options.success = (resp, status, xhr) ->
     info "remote #{method} ok"
-    options.parse = yes
     success?(resp, status, xhr)
 
   options.error = ->
@@ -134,6 +135,8 @@ localSync = (method, entity, options) ->
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
   reset = !options.add
 
+  options.parse = no
+
   info 'localSync before', entity.length
   makeQuery = ->
     info "local #{method}..."
@@ -145,7 +148,6 @@ localSync = (method, entity, options) ->
     info 'localSync after', resp.length
     if resp
       info "local #{method} ok"
-      options.parse = no
       options.success?(resp, 'local', null)
     else
       info "local #{method} error"
