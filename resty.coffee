@@ -112,6 +112,7 @@ remoteSync = (method, entity, options) ->
 
   options.success = (resp, status, xhr) ->
     info "remote #{method} ok"
+    options.parse = yes
     success?(resp, status, xhr)
 
   options.error = ->
@@ -139,6 +140,7 @@ localSync = (method, entity, options) ->
     info 'localSync after', resp.length
     if resp
       info "local #{method} ok"
+      options.parse = no
       options.success?(resp, 'local', null)
     else
       info "local #{method} error"
