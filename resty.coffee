@@ -1,35 +1,24 @@
 SQLAdapter = require('alloy/sync/sql')
 
 
-Mode =
-  RemoteOnly: 1   # remote only sync
-  LocalOnly: 2    # local only sync
-  Remote: 3       # remote sync; update locally if success
-  Local: 4        # local sync; remote sync if success
-  RemoteFirst: 5  # try to sync remote first; 'LocalOnly' as fallback
-  LocalFirst: 6   # try to sync local first; 'Remote' as fallback
-                  # (in this mode fetch empty local will initiate 'Remote')
-
-handlers = {}
-initHandlers = ->
-  handlers[Mode.RemoteOnly] = remoteOnly
-  handlers[Mode.LocalOnly] = localOnly
-  handlers[Mode.Remote] = remote
-  handlers[Mode.Local] = local
-  handlers[Mode.RemoteFirst] = remoteFirst
-  handlers[Mode.LocalFirst] = localFirst
+Handlers = _.once ->
+  RemoteOnly: remoteOnly    # remote only sync
+  LocalOnly: localOnly      # local only sync
+  Remote: remote            # remote sync; update locally if success
+  Local: local              # local sync; remote sync if success
+  RemoteFirst: remoteFirst  # try to sync remote first; 'LocalOnly' as fallback
+  LocalFirst: localFirst    # try to sync local first; 'Remote' as fallback
+                            # (fetch empty local will initiate 'Remote')
 
 
 sync = (method, entity, options) ->
-  optionsMode = getMode(options)
-  configMode = getMode(entity.config.adapter)
-  mode = optionsMode or configMode or Mode.RemoteFirst
+  optionsHandler = getHandler(options)
+  configHandler = getHandler(entity.config.adapter)
+  handler = optionsHandler or configHandler or Handlers.RemoteFirst
 
-  unless handler = handlers[mode]
-    throw "Invalid mode #{mode}"
-
-  info "sync in '#{_.invert(Mode)[mode]}' mode"
+  info "#{Array(80).join('~')}\nsync in '#{_.invert(Handlers())[handler]}' mode"
   handler(method, entity, options)
+
   return entity
 
 
@@ -108,25 +97,29 @@ localFirst = (method, entity, options) ->
 
 # remote sync
 remoteSync = (method, entity, options) ->
+  success = options.success
+  error = options.error
+
   if entity instanceof Alloy.Backbone.Collection
     entity.url or= entity.config.adapter.url
   else
     entity.urlRoot or= entity.config.adapter.url
 
-  success = options.success
-  error = options.error
-
   options.parse = yes
 
+  name = entity.config.adapter.collection_name
+  info "remote #{method} '#{name}'..."
+  prof = new Profiler()
+
   options.success = (resp, status, xhr) ->
-    info "remote #{method} ok"
+    info "remote #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
     success?(resp, status, xhr)
+    info "remote parsing complete in", prof.tick()
 
   options.error = ->
-    info "remote #{method} error"
+    info "remote #{method} failed in", prof.tick()
     error?()
 
-  info "remote #{method}..."
   Alloy.Backbone.sync(method, entity, options)
 
 
@@ -138,21 +131,22 @@ localSync = (method, entity, options) ->
 
   options.parse = no
 
-  makeQuery = ->
-    name = entity.config.adapter.collection_name
-    info "local #{method} '#{name}': #{JSON.stringify(query) or 'default'} ..."
-    prof = new Profiler()
+  name = entity.config.adapter.collection_name
+  info "local #{method} '#{name}': #{JSON.stringify(query) or 'default query'} ..."
+  prof = new Profiler()
 
+  makeQuery = ->
     resp = switch method
       when 'read' then localRead(entity, query)
       when 'create', 'update' then localUpdate(entity, query, reset)
       when 'delete' then localDelete(entity, query)
 
     if resp
-      info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values"
+      info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
       options.success?(resp, 'local', null)
+      info "local parsing complete in", prof.tick()
     else
-      info "local #{method} failed in #{prof.tick()}"
+      info "local #{method} failed in", prof.tick()
       options.error?()
 
   if async then setTimeout(makeQuery, 0) else makeQuery()
@@ -258,12 +252,8 @@ localUpdate = (entity, query, reset) ->
   dbExecute dbName, yes, (db) ->
     sqlDeleteAll(db, table) if reset
 
-    prof = new Profiler()
-
     models.map (model) ->
       sqlSaveModel(db, model, columns, query)
-
-    info 'wrote in', prof.tick()
 
   return entity.toJSON()
 
@@ -329,18 +319,16 @@ addUrlParams = (url, urlparams) ->
   return url + delimiter + urlparams
 
 
-getMode = (options) ->
-  mode = _.result(options, 'mode')
-  if _.isString(mode) then Mode[mode] else mode
+getHandler = (options) ->
+  Handlers()[_.result(options, 'mode')]
 
 
-initHandlers()
 if Alloy.Backbone.VERSION is '0.9.2'
   Alloy.Backbone.setDomLibrary(ajax: request)
 else
   Alloy.Backbone.ajax = request
 
-module.exports.Mode = Mode
+
 module.exports.sync = sync
 module.exports.beforeModelCreate = SQLAdapter.beforeModelCreate
 module.exports.afterModelCreate = SQLAdapter.afterModelCreate
