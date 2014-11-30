@@ -127,7 +127,7 @@ remoteSync = (method, entity, options) ->
 localSync = (method, entity, options) ->
   query = _.result(options, 'query')
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
-  reset = !options.add
+  reset = options.reset
 
   options.parse = no
 
