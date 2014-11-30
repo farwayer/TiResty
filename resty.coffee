@@ -267,7 +267,7 @@ localDelete = (entity, query) ->
 
 
 # sql
-sqlSaveModel = (db, table, model, fields) ->
+sqlSaveModel = (db, table, model, columns) ->
   # TODO: optimize
   unless model.id
     model.set(model.idAttribute, guid(), silent: yes)
