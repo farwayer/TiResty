@@ -129,7 +129,7 @@ remoteSync = (method, entity, options) ->
 localSync = (method, entity, options) ->
   query = _.result(options, 'query')
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
-  reset = options.reset
+  reset = options.reset ? _.result(entity.config.adapter, 'reset')
 
   options.parse = no
 
@@ -247,7 +247,7 @@ localUpdate = (entity, query, reset) ->
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, (db) ->
-    sqlDeleteAll(db, table) if reset
+    sqlDeleteAll(db, table) if reset and isCollection
 
     models.map (model) ->
       sqlSaveModel(db, table, model, columns)
@@ -273,9 +273,9 @@ sqlSaveModel = (db, table, model, columns) ->
     model.set(model.idAttribute, guid(), silent: yes)
 
   fields = _.intersection(model.keys(), columns)
-  sqlQ = Array(fields.length + 1).join('?').split('').join(',')
-  sqlFields = fields.join(',')
-  sqlSet = fields.map((column) -> column + '=?').join(',')
+  sqlQ = Array(fields.length + 1).join('?').split('').join()
+  sqlFields = fields.join()
+  sqlSet = fields.map((column) -> column + '=?').join()
 
   insert = "INSERT OR IGNORE INTO #{table} (#{sqlFields}) VALUES (#{sqlQ});"
   update = "
