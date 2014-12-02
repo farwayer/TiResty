@@ -42,8 +42,10 @@ remote = (method, entity, options) ->
     # remote sync was ok; update local data
     method = 'update' if method is 'read'
 
+    # prevent to repeat callbacks
     options.success = null
     options.error = null
+
     localSync(method, entity, options)
 
   remoteSync(method, entity, options)
@@ -127,21 +129,22 @@ remoteSync = (method, entity, options) ->
 
 # local sync
 localSync = (method, entity, options) ->
-  query = _.result(options, 'query')
+  query = _.result(options, 'query') or _.result(entity.config.adapter, 'query')
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
   reset = options.reset ? _.result(entity.config.adapter, 'reset')
+  sql = getSql(query)
 
   options.parse = no
 
   name = entity.config.adapter.collection_name
-  info "local #{method} '#{name}': #{JSON.stringify(query) or 'default query'} ..."
+  info "local #{method} '#{name}': #{JSON.stringify(sql) or 'default query'} ..."
   prof = new Profiler()
 
   makeQuery = ->
     resp = switch method
-      when 'read' then localRead(entity, query)
-      when 'create', 'update' then localUpdate(entity, query, reset)
-      when 'delete' then localDelete(entity, query)
+      when 'read' then localRead(entity, sql)
+      when 'create', 'update' then localUpdate(entity, sql, reset)
+      when 'delete' then localDelete(entity, sql)
 
     if resp
       info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
@@ -154,7 +157,7 @@ localSync = (method, entity, options) ->
   if async then setTimeout(makeQuery, 0) else makeQuery()
 
 
-# request
+# remote
 request = (options) ->
   type = _.result(options, 'type')
   url = _.result(options, 'url')
@@ -204,17 +207,10 @@ request = (options) ->
   return xhr
 
 
-# local read
-localRead = (entity, query) ->
+# local
+localRead = (entity, sql) ->
   [dbName, table] = getEntityDBConfig(entity)
   isCollection = entity instanceof Alloy.Backbone.Collection
-
-  if _.isObject(query)
-    statement = _.result(query, 'statement') or _.result(query, 'text')
-    sql = _.result(query, 'params') or _.result(query, 'values') or []
-    sql.unshift(statement)
-  else
-    sql = if query then [query] else null
 
   sql or= if isCollection
     ["SELECT * FROM #{table};"]
@@ -235,11 +231,11 @@ localRead = (entity, query) ->
 
     rs.close()
 
-    return if isCollection then resp else resp[0]
+    resp = resp[0] unless isCollection
+    return resp
 
 
-# local update, create
-localUpdate = (entity, query, reset) ->
+localUpdate = (entity, sql, reset) ->
   [dbName, table] = getEntityDBConfig(entity)
   columns = Object.keys(entity.config.columns)
   isCollection = entity instanceof Alloy.Backbone.Collection
@@ -247,17 +243,20 @@ localUpdate = (entity, query, reset) ->
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, (db) ->
-    sqlDeleteAll(db, table) if reset and isCollection
+    if sql
+      db.execute.apply(db, sql)
+    else
+      sqlDeleteAll(db, table) if reset and isCollection
 
-    models.map (model) ->
-      sqlSaveModel(db, table, model, columns)
+      models.map (model) ->
+        sqlSaveModel(db, table, model, columns)
 
-  info entity.toJSON() unless isCollection
-  return entity.toJSON()
+  # update collection is a direct `sync` call without backbone
+  # return entity so callback will get valid model param
+  return if isCollection then entity.toJSON() else entity
 
 
-# localDelete
-localDelete = (entity, query) ->
+localDelete = (entity, sql) ->
   [dbName, table] = getEntityDBConfig(entity)
 
   dbExecute dbName, no, (db) ->
@@ -333,6 +332,17 @@ addUrlParams = (url, urlparams) ->
 
 getHandler = (options) ->
   Handlers()[_.result(options, 'mode')]
+
+
+getSql = (query) ->
+  return null unless query
+
+  if _.isObject(query)
+    statement = _.result(query, 'statement') or _.result(query, 'text')
+    params = _.result(query, 'params') or _.result(query, 'values') or []
+    return [statement, params]
+  else
+    return [query]
 
 
 if Alloy.Backbone.VERSION is '0.9.2'
