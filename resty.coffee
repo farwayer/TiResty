@@ -14,7 +14,7 @@ Handlers = _.once ->
 sync = (method, entity, options) ->
   optionsHandler = getHandler(options)
   configHandler = getHandler(entity.config.adapter)
-  handler = optionsHandler or configHandler or Handlers.RemoteFirst
+  handler = optionsHandler or configHandler or Handlers().RemoteFirst
 
   info "#{Array(80).join('~')}\nsync in '#{_.invert(Handlers())[handler]}' mode"
   handler(method, entity, options)
