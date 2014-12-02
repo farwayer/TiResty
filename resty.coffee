@@ -61,8 +61,10 @@ local = (method, entity, options) ->
   options.success = (resp, status, xhr) ->
     success?(resp, status, xhr)
 
+    # prevent to repeat callbacks
     options.success = null
     options.error = null
+
     remoteSync(method, entity, options)
 
   localSync(method, entity, options)
@@ -190,12 +192,12 @@ localSync = (method, entity, options) ->
   reset = needReset(entity, options)
   isCollection = entityIsCollection(entity)
 
-  sql = genSql(query)
+  sql = getSql(query)
 
   options.parse = no
 
-  name = entity.config.adapter.collection_name
-  info "local #{method} '#{name}': #{JSON.stringify(sql) or 'default query'} ..."
+  table = entity.config.adapter.collection_name
+  info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
   prof = new Profiler()
 
   makeQuery = ->
@@ -222,42 +224,25 @@ localSync = (method, entity, options) ->
 
 localRead = (entity, isCollection, dbName, table, sql) ->
   sql or= if isCollection
-    ["SELECT * FROM #{table};"]
+    [sqlSelectAllQuery(table)]
   else
-    ["SELECT * FROM #{table} WHERE #{entity.idAttribute}=?;", entity.id]
+    [sqlSelectModelQuery(table, entity.idAttribute), entity.id]
 
-  dbExecute dbName, no, (db) ->
-    rs = db.execute.apply(db, sql)
-
-    fields = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
-
-    resp = while rs.isValidRow()
-      attrs = {}
-      for i in [0...rs.fieldCount] by 1
-        attrs[fields[i]] = rs.field(i)
-      rs.next()
-      attrs
-
-    rs.close()
-
+  dbExecute dbName, no, sql, (db, rs) ->
+    resp = parseSelectResult(rs)
     resp = resp[0] unless isCollection
     return resp
 
 
 localCreate = (entity, isCollection, dbName, table, sql) ->
-  # gen query one time: optimization for large collections
   columns = Object.keys(entity.config.columns)
-  sqlColumns = columns.join()
-  sqlQ = Array(columns.length + 1).join('?,')[...-1]
-  query = "INSERT INTO #{table} (#{sqlColumns}) VALUES (#{sqlQ});"
-
   models = if isCollection then entity.models else [entity]
 
-  dbExecute dbName, yes, (db) ->
-    sqlDeleteAll(db, table) if isCollection
+  dbExecute dbName, yes, sql, (db, rs) ->
+    return if sql # custom query was
 
-    entity.models.map (model) ->
-      sqlCreateModel(db, model, query, columns)
+    sqlDeleteAll(db, table) if isCollection
+    sqlCreateModelList(db, table, models, columns)
 
   # create collection is a direct `sync` called without backbone
   # return entity so callback will get valid model param
@@ -268,14 +253,10 @@ localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
   columns = Object.keys(entity.config.columns)
   models = if isCollection then entity.models else [entity]
 
-  dbExecute dbName, yes, (db) ->
-    if sql
-      db.execute.apply(db, sql)
-    else
-      sqlDeleteAll(db, table) if reset and isCollection
+  dbExecute dbName, yes, sql, (db, rs) ->
+    return if sql # custom query was
 
-      models.map (model) ->
-        sqlUpdateModel(db, table, model, columns)
+    sqlUpdateModelList(db, table, models, columns)
 
   # update collection is a direct `sync` called without backbone
   # return entity so callback will get valid model param
@@ -283,7 +264,9 @@ localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
 
 
 localDelete = (entity, isCollection, dbName, table, sql) ->
-  dbExecute dbName, no, (db) ->
+  dbExecute dbName, no, sql, (db, rs) ->
+    return if sql # custom query was
+
     if isCollection
       sqlDeleteAll(db, table)
     else
@@ -296,44 +279,118 @@ localDelete = (entity, isCollection, dbName, table, sql) ->
 
 
 # sql
-sqlCreateModel = (db, model, query, columns) ->
-  unless model.id
-    model.set(model.idAttribute, guid())
+sqlCreateModelList = (db, table, models, columns) ->
+  query = sqlInsertQuery(table, columns)
 
+  models.map (model) ->
+    genModelId(model) unless model.id
+    values = columns.map(model.get, model)
+    db.execute(query, values)
+
+
+sqlUpdateModel = (db, table, model, columns, insertQuery, replaceQuery) ->
   values = columns.map(model.get, model)
-  db.execute(query, values)
 
-
-sqlUpdateModel = (db, table, model, columns) ->
-  # TODO: optimize
+  # simply create if no id
   unless model.id
-    model.set(model.idAttribute, guid(), silent: yes)
+    genModelId(model)
+    return db.execute(insertQuery, values)
 
-  fields = _.intersection(model.keys(), columns)
-  sqlQ = Array(fields.length + 1).join('?').split('').join()
-  sqlFields = fields.join()
-  sqlSet = fields.map((column) -> column + '=?').join()
+  modelFields = model.keys()
+  updatedFields = columns.filter (column) -> modelFields.indexOf(column) >= 0
 
-  insert = "INSERT OR IGNORE INTO #{table} (#{sqlFields}) VALUES (#{sqlQ});"
-  update = "
-    UPDATE #{table} SET #{sqlSet} WHERE CHANGES()=0 AND #{model.idAttribute}=?;
-  "
+  # replace if all fields changed (faster than upsert)
+  if updatedFields.length is columns.length
+    return db.execute(replaceQuery, values)
 
-  values = fields.map(model.get, model)
-  db.execute(insert, values)
+  # upsert
+  db.execute(insertQuery, values)
+  return unless db.rowsAffected is 0
 
-  values.push(model.id)
-  db.execute(update, values)
+  updateQuery = sqlUpdateQuery(table, updatedFields, model.idAttribute)
+  updatedValues = updatedFields.map(model.get, model)
+  updatedValues.push(model.id)
+
+  db.execute(updateQuery, updatedValues)
+
+
+sqlUpdateModelList = (db, table, models, columns) ->
+  p = new Profiler()
+  insertQuery = sqlInsertQuery(table, columns)
+  replaceQuery = sqlReplaceQuery(table, columns)
+  models.map (model) ->
+    sqlUpdateModel(db, table, model, columns, insertQuery, replaceQuery)
+  info 'XXXX', p.tick()
 
 
 sqlDeleteAll = (db, table) ->
-  query = "DELETE FROM #{table};"
+  query = sqlDeleteAllQuery(table)
   db.execute(query)
 
 
 sqlDeleteModel = (db, table, model) ->
-  query = "DELETE FROM #{table} WHERE #{model.idAttribute}=?;"
+  query = sqlDeleteModelQuery(table, model.idAttribute)
   db.execute(query, model.id)
+
+
+# sql helpers
+sqlDeleteAllQuery = (table) ->
+  "DELETE FROM #{table};"
+
+
+sqlDeleteModelQuery = (table, idAttribute) ->
+  "DELETE FROM #{table} WHERE #{idAttribute}=?;"
+
+
+sqlInsertQuery = (table, columns) ->
+  sqlColumns = sqlColumnList(columns)
+  sqlQ = sqlQList(columns.length)
+
+  "INSERT OR IGNORE INTO #{table} #{sqlColumns} VALUES #{sqlQ};"
+
+
+sqlReplaceQuery = (table, columns) ->
+  sqlColumns = sqlColumnList(columns)
+  sqlQ = sqlQList(columns.length)
+
+  "REPLACE INTO #{table} #{sqlColumns} VALUES #{sqlQ};"
+
+
+sqlUpdateQuery = (table, columns, idAttribute) ->
+  sqlSet = sqlSetList(columns)
+
+  "UPDATE #{table} SET #{sqlSet} WHERE #{idAttribute}=?;"
+
+
+sqlSelectAllQuery = (table) ->
+  ["SELECT * FROM #{table};"]
+
+
+sqlSelectModelQuery = (table, idAttribute) ->
+  "SELECT * FROM #{table} WHERE #{idAttribute}=?;"
+
+
+sqlQList = (count) ->
+  "(#{Array(count + 1).join('?,')[...-1]})"
+
+
+sqlColumnList = (columns) ->
+  "(#{columns.join()})"
+
+
+sqlSetList = (columns) ->
+  columns.map((column) -> "#{column}=?").join()
+
+
+parseSelectResult = (rs) ->
+  fields = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
+
+  while rs.isValidRow()
+    attrs = {}
+    for i in [0...rs.fieldCount] by 1
+      attrs[fields[i]] = rs.field(i)
+    rs.next()
+    attrs
 
 
 
@@ -346,17 +403,28 @@ getEntityDBConfig = (entity) ->
   return [dbName, table]
 
 
-dbExecute = (dbName, transaction, action) ->
+dbExecute = (dbName, transaction, sql, action) ->
+  action or= (db, rs) -> rs
+
   db = Ti.Database.open(dbName)
   db.execute("BEGIN;") if transaction
-  result = action(db)
+
+  rs = db.execute.apply(db, sql) if sql
+  result = action(db, rs)
+  rs.close() if rs
+
   db.execute("COMMIT;") if transaction
   db.close()
+
   return result
 
 
 guid = ->
   Math.random().toString(36) + Math.random().toString(36)
+
+
+genModelId = (model) ->
+  model.set(model.idAttribute, guid())
 
 
 addUrlParams = (url, urlparams) ->
@@ -373,7 +441,7 @@ getHandler = (options) ->
   Handlers()[_.result(options, 'mode')]
 
 
-genSql = (query) ->
+getSql = (query) ->
   return null unless query
 
   if _.isObject(query)
