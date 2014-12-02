@@ -100,10 +100,11 @@ localFirst = (method, entity, options) ->
 # remote
 remoteSync = (method, entity, options) ->
   rootObject = options.rootObject ? entity.config.adapter.rootObject
+  isCollection = entity instanceof Alloy.Backbone.Collection
   success = options.success
   error = options.error
 
-  if entity instanceof Alloy.Backbone.Collection
+  if isCollection
     entity.url or= entity.config.adapter.url
   else
     entity.urlRoot or= entity.config.adapter.url
