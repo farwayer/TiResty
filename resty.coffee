@@ -97,7 +97,7 @@ localFirst = (method, entity, options) ->
   localOnly(method, entity, options)
 
 
-# remote sync
+# remote
 remoteSync = (method, entity, options) ->
   rootObject = options.rootObject ? entity.config.adapter.rootObject
   success = options.success
@@ -127,37 +127,6 @@ remoteSync = (method, entity, options) ->
   Alloy.Backbone.sync(method, entity, options)
 
 
-# local sync
-localSync = (method, entity, options) ->
-  query = _.result(options, 'query') or _.result(entity.config.adapter, 'query')
-  async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
-  reset = options.reset ? _.result(entity.config.adapter, 'reset')
-  sql = getSql(query)
-
-  options.parse = no
-
-  name = entity.config.adapter.collection_name
-  info "local #{method} '#{name}': #{JSON.stringify(sql) or 'default query'} ..."
-  prof = new Profiler()
-
-  makeQuery = ->
-    resp = switch method
-      when 'read' then localRead(entity, sql)
-      when 'create', 'update' then localUpdate(entity, sql, reset)
-      when 'delete' then localDelete(entity, sql)
-
-    if resp
-      info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
-      options.success?(resp, 'local', null)
-      info "local parsing complete in", prof.tick()
-    else
-      info "local #{method} failed in", prof.tick()
-      options.error?()
-
-  if async then setTimeout(makeQuery, 0) else makeQuery()
-
-
-# remote
 request = (options) ->
   type = _.result(options, 'type')
   url = _.result(options, 'url')
@@ -208,10 +177,42 @@ request = (options) ->
 
 
 # local
-localRead = (entity, sql) ->
+localSync = (method, entity, options) ->
   [dbName, table] = getEntityDBConfig(entity)
+  query = _.result(options, 'query') or _.result(entity.config.adapter, 'query')
+  async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
+  reset = options.reset ? _.result(entity.config.adapter, 'reset')
   isCollection = entity instanceof Alloy.Backbone.Collection
 
+  sql = getSql(query)
+
+  options.parse = no
+
+  name = entity.config.adapter.collection_name
+  info "local #{method} '#{name}': #{JSON.stringify(sql) or 'default query'} ..."
+  prof = new Profiler()
+
+  makeQuery = ->
+    resp = switch method
+      when 'read'
+        localRead(entity, isCollection, dbName, table, sql)
+      when 'create', 'update'
+        localUpdate(entity, isCollection, dbName, table, sql, reset)
+      when 'delete'
+        localDelete(entity, isCollection, dbName, table, sql)
+
+    if resp
+      info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
+      options.success?(resp, 'local', null)
+      info "local parsing complete in", prof.tick()
+    else
+      info "local #{method} failed in", prof.tick()
+      options.error?()
+
+  if async then setTimeout(makeQuery, 0) else makeQuery()
+
+
+localRead = (entity, isCollection, dbName, table, sql) ->
   sql or= if isCollection
     ["SELECT * FROM #{table};"]
   else
@@ -235,11 +236,8 @@ localRead = (entity, sql) ->
     return resp
 
 
-localUpdate = (entity, sql, reset) ->
-  [dbName, table] = getEntityDBConfig(entity)
+localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
   columns = Object.keys(entity.config.columns)
-  isCollection = entity instanceof Alloy.Backbone.Collection
-
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, (db) ->
@@ -256,9 +254,7 @@ localUpdate = (entity, sql, reset) ->
   return if isCollection then entity.toJSON() else entity
 
 
-localDelete = (entity, sql) ->
-  [dbName, table] = getEntityDBConfig(entity)
-
+localDelete = (entity, isCollection, dbName, table, sql) ->
   dbExecute dbName, no, (db) ->
     sqlDeleteModel(db, table, entity)
 
