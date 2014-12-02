@@ -257,7 +257,10 @@ localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
 
 localDelete = (entity, isCollection, dbName, table, sql) ->
   dbExecute dbName, no, (db) ->
-    sqlDeleteModel(db, table, entity)
+    if isCollection
+      sqlDeleteAll(db, table)
+    else
+      sqlDeleteModel(db, table, entity)
 
   # delete collection is a direct `sync` called without backbone
   # return entity so callback will get valid model param
