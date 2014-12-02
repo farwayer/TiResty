@@ -363,7 +363,7 @@ sqlUpdateQuery = (table, columns, idAttribute) ->
 
 
 sqlSelectAllQuery = (table) ->
-  ["SELECT * FROM #{table};"]
+  "SELECT * FROM #{table};"
 
 
 sqlSelectModelQuery = (table, idAttribute) ->
