@@ -11,12 +11,15 @@ Handlers = _.once ->
                             # (fetch empty local will initiate 'Remote')
 
 
-sync = (method, entity, options) ->
-  optionsHandler = getHandler(options)
-  configHandler = getHandler(entity.config.adapter)
-  handler = optionsHandler or configHandler or Handlers().RemoteFirst
+sync = (method, entity, options={}) ->
+  options = _.clone(options)
+  options = _.extend(options, entity.config.adapter)
 
-  info "#{Array(80).join('~')}\nsync in '#{_.invert(Handlers())[handler]}' mode"
+  mode = _.result(options, 'mode')
+  handlers = Handlers()
+  handler = handlers[mode] or handlers.RemoteFirst
+
+  info "#{Array(80).join('~')}\nsync in '#{mode}' mode"
   handler(method, entity, options)
 
   return entity
@@ -42,7 +45,7 @@ remote = (method, entity, options) ->
 
     # remote sync was ok; save local data
     if method is 'read'
-      reset = needReset(entity, options)
+      reset = options.reset
       method = if reset then 'create' else 'update'
 
     # prevent to repeat callbacks
@@ -76,6 +79,7 @@ remoteFirst = (method, entity, options) ->
 
   options.error = ->
     options.error = error
+
     localOnly(method, entity, options)
 
   remote(method, entity, options)
@@ -89,6 +93,7 @@ localFirst = (method, entity, options) ->
   makeRemote = ->
     options.success = success
     options.error = error
+
     remote(method, entity, options)
 
   options.error = makeRemote
@@ -105,20 +110,20 @@ localFirst = (method, entity, options) ->
 
 # remote
 remoteSync = (method, entity, options) ->
-  rootObject = options.rootObject ? entity.config.adapter.rootObject
   isCollection = entityIsCollection(entity)
+  rootObject = options.rootObject
   success = options.success
   error = options.error
 
   if isCollection
-    entity.url or= entity.config.adapter.url
+    entity.url or= options.url
   else
-    entity.urlRoot or= entity.config.adapter.url
+    entity.urlRoot or= options.url
 
   options.parse = yes
 
-  name = entity.config.adapter.collection_name
-  info "remote #{method} '#{name}'..."
+  collection = options.collection_name
+  info "remote #{method} '#{collection}'..."
   prof = new Profiler()
 
   options.success = (resp, status, xhr) ->
@@ -186,21 +191,21 @@ request = (options) ->
 
 # local
 localSync = (method, entity, options) ->
-  [dbName, table] = getEntityDBConfig(entity)
-  query = _.result(options, 'query') or _.result(entity.config.adapter, 'query')
-  async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
-  reset = needReset(entity, options)
+  table = options.collection_name
+  dbName = options.db_name or ALLOY_DB_DEFAULT
+  reset = options.reset
+  query = _.result(options, 'query')
+  async = _.result(options, 'async')
   isCollection = entityIsCollection(entity)
 
   sql = getSql(query)
 
   options.parse = no
 
-  table = entity.config.adapter.collection_name
   info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
   prof = new Profiler()
 
-  makeQuery = ->
+  makeLocal = ->
     resp = switch method
       when 'read'
         localRead(entity, isCollection, dbName, table, sql)
@@ -219,7 +224,7 @@ localSync = (method, entity, options) ->
       info "local #{method} failed in", prof.tick()
       options.error?()
 
-  if async then setTimeout(makeQuery, 0) else makeQuery()
+  if async then setTimeout(makeLocal, 0) else makeLocal()
 
 
 localRead = (entity, isCollection, dbName, table, sql) ->
@@ -239,12 +244,12 @@ localCreate = (entity, isCollection, dbName, table, sql) ->
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, sql, (db, rs) ->
-    return if sql # custom query was
+    return if sql # custom query was executed
 
     sqlDeleteAll(db, table) if isCollection
     sqlCreateModelList(db, table, models, columns)
 
-  # create collection is a direct `sync` called without backbone
+  # create collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   return if isCollection then entity else entity.toJSON()
 
@@ -254,25 +259,25 @@ localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, sql, (db, rs) ->
-    return if sql # custom query was
+    return if sql # custom query was executed
 
     sqlUpdateModelList(db, table, models, columns)
 
-  # update collection is a direct `sync` called without backbone
+  # update collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   return if isCollection then entity.toJSON() else entity
 
 
 localDelete = (entity, isCollection, dbName, table, sql) ->
   dbExecute dbName, no, sql, (db, rs) ->
-    return if sql # custom query was
+    return if sql # custom query was executed
 
     if isCollection
       sqlDeleteAll(db, table)
     else
       sqlDeleteModel(db, table, entity)
 
-  # delete collection is a direct `sync` called without backbone
+  # delete collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   return if isCollection then entity.toJSON() else entity
 
@@ -283,7 +288,7 @@ sqlCreateModelList = (db, table, models, columns) ->
   query = sqlInsertQuery(table, columns)
 
   models.map (model) ->
-    genModelId(model) unless model.id
+    setRandomId(model) unless model.id
     values = columns.map(model.get, model)
     db.execute(query, values)
 
@@ -291,15 +296,15 @@ sqlCreateModelList = (db, table, models, columns) ->
 sqlUpdateModel = (db, table, model, columns, insertQuery, replaceQuery) ->
   values = columns.map(model.get, model)
 
-  # simply create if no id
+  # simple create if no id
   unless model.id
-    genModelId(model)
+    setRandomId(model)
     return db.execute(insertQuery, values)
 
   modelFields = model.keys()
   updatedFields = columns.filter (column) -> modelFields.indexOf(column) >= 0
 
-  # replace if all fields changed (faster than upsert)
+  # replace if all fields was changed (faster than upsert)
   if updatedFields.length is columns.length
     return db.execute(replaceQuery, values)
 
@@ -395,14 +400,6 @@ parseSelectResult = (rs) ->
 
 
 # helpers
-getEntityDBConfig = (entity) ->
-  adapter = entity.config.adapter
-  dbName = adapter.db_name or ALLOY_DB_DEFAULT
-  table = adapter.collection_name
-
-  return [dbName, table]
-
-
 dbExecute = (dbName, transaction, sql, action) ->
   action or= (db, rs) -> rs
 
@@ -423,7 +420,7 @@ guid = ->
   Math.random().toString(36) + Math.random().toString(36)
 
 
-genModelId = (model) ->
+setRandomId = (model) ->
   model.set(model.idAttribute, guid())
 
 
@@ -435,10 +432,6 @@ addUrlParams = (url, urlparams) ->
 
   delimiter = if url.indexOf('?') is -1 then '?' else '&'
   return url + delimiter + urlparams
-
-
-getHandler = (options) ->
-  Handlers()[_.result(options, 'mode')]
 
 
 getSql = (query) ->
@@ -454,10 +447,6 @@ getSql = (query) ->
 
 entityIsCollection = (entity) ->
   entity instanceof Alloy.Backbone.Collection
-
-
-needReset = (entity, options) ->
-  options.reset ? _.result(entity.config.adapter, 'reset')
 
 
 if Alloy.Backbone.VERSION is '0.9.2'
