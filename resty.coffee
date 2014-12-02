@@ -259,7 +259,9 @@ localDelete = (entity, isCollection, dbName, table, sql) ->
   dbExecute dbName, no, (db) ->
     sqlDeleteModel(db, table, entity)
 
-  return entity.toJSON()
+  # delete collection is a direct `sync` called without backbone
+  # return entity so callback will get valid model param
+  return if isCollection then entity.toJSON() else entity
 
 
 # sql
