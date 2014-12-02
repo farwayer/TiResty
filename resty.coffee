@@ -251,7 +251,7 @@ localUpdate = (entity, sql, reset) ->
       models.map (model) ->
         sqlSaveModel(db, table, model, columns)
 
-  # update collection is a direct `sync` call without backbone
+  # update collection is a direct `sync` called without backbone
   # return entity so callback will get valid model param
   return if isCollection then entity.toJSON() else entity
 
