@@ -22,6 +22,7 @@ sync = (method, entity, options) ->
   return entity
 
 
+
 # Mode.RemoteOnly
 remoteOnly = (method, entity, options) ->
   remoteSync(method, entity, options)
@@ -39,8 +40,10 @@ remote = (method, entity, options) ->
   options.success = (resp, status, xhr) ->
     success?(resp, status, xhr)
 
-    # remote sync was ok; update local data
-    method = 'update' if method is 'read'
+    # remote sync was ok; save local data
+    if method is 'read'
+      reset = needReset(entity, options)
+      method = if reset then 'create' else 'update'
 
     # prevent to repeat callbacks
     options.success = null
@@ -97,10 +100,11 @@ localFirst = (method, entity, options) ->
   localOnly(method, entity, options)
 
 
+
 # remote
 remoteSync = (method, entity, options) ->
   rootObject = options.rootObject ? entity.config.adapter.rootObject
-  isCollection = entity instanceof Alloy.Backbone.Collection
+  isCollection = entityIsCollection(entity)
   success = options.success
   error = options.error
 
@@ -177,15 +181,16 @@ request = (options) ->
   return xhr
 
 
+
 # local
 localSync = (method, entity, options) ->
   [dbName, table] = getEntityDBConfig(entity)
   query = _.result(options, 'query') or _.result(entity.config.adapter, 'query')
   async = _.result(options, 'async') ? _.result(entity.config.adapter, 'async')
-  reset = options.reset ? _.result(entity.config.adapter, 'reset')
-  isCollection = entity instanceof Alloy.Backbone.Collection
+  reset = needReset(entity, options)
+  isCollection = entityIsCollection(entity)
 
-  sql = getSql(query)
+  sql = genSql(query)
 
   options.parse = no
 
@@ -197,7 +202,9 @@ localSync = (method, entity, options) ->
     resp = switch method
       when 'read'
         localRead(entity, isCollection, dbName, table, sql)
-      when 'create', 'update'
+      when 'create'
+        localCreate(entity, isCollection, dbName, table, sql)
+      when 'update'
         localUpdate(entity, isCollection, dbName, table, sql, reset)
       when 'delete'
         localDelete(entity, isCollection, dbName, table, sql)
@@ -237,6 +244,26 @@ localRead = (entity, isCollection, dbName, table, sql) ->
     return resp
 
 
+localCreate = (entity, isCollection, dbName, table, sql) ->
+  # gen query one time: optimization for large collections
+  columns = Object.keys(entity.config.columns)
+  sqlColumns = columns.join()
+  sqlQ = Array(columns.length + 1).join('?,')[...-1]
+  query = "INSERT INTO #{table} (#{sqlColumns}) VALUES (#{sqlQ});"
+
+  models = if isCollection then entity.models else [entity]
+
+  dbExecute dbName, yes, (db) ->
+    sqlDeleteAll(db, table) if isCollection
+
+    entity.models.map (model) ->
+      sqlCreateModel(db, model, query, columns)
+
+  # create collection is a direct `sync` called without backbone
+  # return entity so callback will get valid model param
+  return if isCollection then entity else entity.toJSON()
+
+
 localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
   columns = Object.keys(entity.config.columns)
   models = if isCollection then entity.models else [entity]
@@ -248,7 +275,7 @@ localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
       sqlDeleteAll(db, table) if reset and isCollection
 
       models.map (model) ->
-        sqlSaveModel(db, table, model, columns)
+        sqlUpdateModel(db, table, model, columns)
 
   # update collection is a direct `sync` called without backbone
   # return entity so callback will get valid model param
@@ -267,8 +294,17 @@ localDelete = (entity, isCollection, dbName, table, sql) ->
   return if isCollection then entity.toJSON() else entity
 
 
+
 # sql
-sqlSaveModel = (db, table, model, columns) ->
+sqlCreateModel = (db, model, query, columns) ->
+  unless model.id
+    model.set(model.idAttribute, guid())
+
+  values = columns.map(model.get, model)
+  db.execute(query, values)
+
+
+sqlUpdateModel = (db, table, model, columns) ->
   # TODO: optimize
   unless model.id
     model.set(model.idAttribute, guid(), silent: yes)
@@ -298,6 +334,7 @@ sqlDeleteAll = (db, table) ->
 sqlDeleteModel = (db, table, model) ->
   query = "DELETE FROM #{table} WHERE #{model.idAttribute}=?;"
   db.execute(query, model.id)
+
 
 
 # helpers
@@ -336,7 +373,7 @@ getHandler = (options) ->
   Handlers()[_.result(options, 'mode')]
 
 
-getSql = (query) ->
+genSql = (query) ->
   return null unless query
 
   if _.isObject(query)
@@ -347,10 +384,19 @@ getSql = (query) ->
     return [query]
 
 
+entityIsCollection = (entity) ->
+  entity instanceof Alloy.Backbone.Collection
+
+
+needReset = (entity, options) ->
+  options.reset ? _.result(entity.config.adapter, 'reset')
+
+
 if Alloy.Backbone.VERSION is '0.9.2'
   Alloy.Backbone.setDomLibrary(ajax: request)
 else
   Alloy.Backbone.ajax = request
+
 
 
 module.exports.sync = sync
