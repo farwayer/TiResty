@@ -14,10 +14,12 @@ Handlers = _.once ->
 sync = (method, entity, options={}) ->
   options = _.clone(options)
   options = _.extend(options, entity.config.adapter)
+  options = _.defaults options,
+    delete: yes, merge: yes, reset: no
+    mode: 'RemoteFirst'
 
   mode = _.result(options, 'mode')
-  handlers = Handlers()
-  handler = handlers[mode] or handlers.RemoteFirst
+  handler = Handlers()[mode]
 
   info "#{Array(80).join('~')}\nsync in '#{mode}' mode"
   handler(method, entity, options)
@@ -132,8 +134,8 @@ remoteSync = (method, entity, options) ->
     success?(resp, status, xhr)
     info "remote parsing complete in", prof.tick()
 
-  options.error = ->
-    info "remote #{method} failed in", prof.tick()
+  options.error = (x, y, z) ->
+    info "remote #{method} failed in", prof.tick(), x, y, z
     error?()
 
   Alloy.Backbone.sync(method, entity, options)
@@ -208,13 +210,13 @@ localSync = (method, entity, options) ->
   makeLocal = ->
     resp = switch method
       when 'read'
-        localRead(entity, isCollection, dbName, table, sql)
+        localRead(entity, isCollection, dbName, table, sql, options)
       when 'create'
-        localCreate(entity, isCollection, dbName, table, sql)
+        localCreate(entity, isCollection, dbName, table, sql, options)
       when 'update'
-        localUpdate(entity, isCollection, dbName, table, sql, reset)
+        localUpdate(entity, isCollection, dbName, table, sql, options)
       when 'delete'
-        localDelete(entity, isCollection, dbName, table, sql)
+        localDelete(entity, isCollection, dbName, table, sql, options)
 
     if resp
       info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
@@ -227,7 +229,7 @@ localSync = (method, entity, options) ->
   if async then setTimeout(makeLocal, 0) else makeLocal()
 
 
-localRead = (entity, isCollection, dbName, table, sql) ->
+localRead = (entity, isCollection, dbName, table, sql, options) ->
   sql or= if isCollection
     [sqlSelectAllQuery(table)]
   else
@@ -239,7 +241,7 @@ localRead = (entity, isCollection, dbName, table, sql) ->
     return resp
 
 
-localCreate = (entity, isCollection, dbName, table, sql) ->
+localCreate = (entity, isCollection, dbName, table, sql, options) ->
   columns = Object.keys(entity.config.columns)
   models = if isCollection then entity.models else [entity]
 
@@ -254,21 +256,21 @@ localCreate = (entity, isCollection, dbName, table, sql) ->
   return if isCollection then entity else entity.toJSON()
 
 
-localUpdate = (entity, isCollection, dbName, table, sql, reset) ->
+localUpdate = (entity, isCollection, dbName, table, sql, options) ->
   columns = Object.keys(entity.config.columns)
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, sql, (db, rs) ->
     return if sql # custom query was executed
 
-    sqlUpdateModelList(db, table, models, columns)
+    sqlUpdateModelList(db, table, models, columns, options)
 
   # update collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   return if isCollection then entity.toJSON() else entity
 
 
-localDelete = (entity, isCollection, dbName, table, sql) ->
+localDelete = (entity, isCollection, dbName, table, sql, options) ->
   dbExecute dbName, no, sql, (db, rs) ->
     return if sql # custom query was executed
 
@@ -319,13 +321,26 @@ sqlUpdateModel = (db, table, model, columns, insertQuery, replaceQuery) ->
   db.execute(updateQuery, updatedValues)
 
 
-sqlUpdateModelList = (db, table, models, columns) ->
+sqlUpdateModelList = (db, table, models, columns, options) ->
+  return if models.length is 0
+
   p = new Profiler()
+
   insertQuery = sqlInsertQuery(table, columns)
   replaceQuery = sqlReplaceQuery(table, columns)
-  models.map (model) ->
+
+  ids = models.map (model) ->
     sqlUpdateModel(db, table, model, columns, insertQuery, replaceQuery)
-  info 'XXXX', p.tick()
+    return model.id
+
+  info 'saved', p.tick()
+
+  if options.delete
+    idAttribute = models[0].idAttribute
+    deleteQuery = sqlDeleteNotIn(table, idAttribute, ids.length)
+    db.execute(deleteQuery, ids)
+
+  info 'remove old', p.tick()
 
 
 sqlDeleteAll = (db, table) ->
@@ -345,6 +360,12 @@ sqlDeleteAllQuery = (table) ->
 
 sqlDeleteModelQuery = (table, idAttribute) ->
   "DELETE FROM #{table} WHERE #{idAttribute}=?;"
+
+
+sqlDeleteNotIn = (table, idAttribute, count) ->
+  sqlQ = sqlQList(count)
+
+  "DELETE FROM #{table} WHERE #{idAttribute} NOT IN #{sqlQ}"
 
 
 sqlInsertQuery = (table, columns) ->
