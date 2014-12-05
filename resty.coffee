@@ -324,6 +324,13 @@ sqlUpdateModel = (db, table, model, columns, insertQuery, replaceQuery) ->
 sqlUpdateModelList = (db, table, models, columns, options) ->
   return if models.length is 0
 
+  if models.length > 1
+    countQuery = sqlCountQuery(table)
+    rs = db.execute(countQuery)
+    count = parseInt(rs.fieldByName('count'))
+    if count is 0
+      return sqlCreateModelList(db, table, models, columns)
+
   p = new Profiler()
 
   insertQuery = sqlInsertQuery(table, columns)
@@ -394,6 +401,10 @@ sqlSelectAllQuery = (table) ->
 
 sqlSelectModelQuery = (table, idAttribute) ->
   "SELECT * FROM #{table} WHERE #{idAttribute}=?;"
+
+
+sqlCountQuery = (table) ->
+  "SELECT COUNT(*) AS count FROM #{table}"
 
 
 sqlQList = (count) ->
