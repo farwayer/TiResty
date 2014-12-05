@@ -1,4 +1,5 @@
 SQLAdapter = require('alloy/sync/sql')
+info = (args...) -> Ti.API.info(args...)
 
 
 Handlers = _.once ->
@@ -13,7 +14,9 @@ Handlers = _.once ->
 
 sync = (method, entity, options={}) ->
   options = _.clone(options)
-  options = _.extend(options, entity.config.adapter)
+  adapter = _.clone(entity.config.adapter)
+  delete adapter.type # prevent shadow backbone http type
+  options = _.extend(adapter, options)
   options = _.defaults options,
     delete: yes, merge: yes, reset: no
     mode: 'RemoteFirst'
@@ -124,16 +127,15 @@ remoteSync = (method, entity, options) ->
 
   collection = options.collection_name
   info "remote #{method} '#{collection}'..."
-  prof = new Profiler()
 
   options.success = (resp, status, xhr) ->
     resp = rootObject(resp, options) if rootObject
-    info "remote #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
+    info "remote #{method} ok in #{resp.length ? 1} values; parsing..."
     success?(resp, status, xhr)
-    info "remote parsing complete in", prof.tick()
+    info "remote parsing complete in"
 
   options.error = (x, y, z) ->
-    info "remote #{method} failed in", prof.tick(), x, y, z
+    info "remote #{method} failed in", x, y, z
     error?()
 
   Alloy.Backbone.sync(method, entity, options)
@@ -202,7 +204,6 @@ localSync = (method, entity, options) ->
   options.parse = no
 
   info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
-  prof = new Profiler()
 
   makeLocal = ->
     resp = switch method
@@ -216,11 +217,11 @@ localSync = (method, entity, options) ->
         localDelete(entity, isCollection, dbName, table, sql, options)
 
     if resp
-      info "local #{method} ok in #{prof.tick()}; #{resp.length ? 1} values; parsing..."
+      info "local #{method} ok in #{resp.length ? 1} values; parsing..."
       options.success?(resp, 'local', null)
-      info "local parsing complete in", prof.tick()
+      info "local parsing complete in"
     else
-      info "local #{method} failed in", prof.tick()
+      info "local #{method} failed in"
       options.error?()
 
   if async then setTimeout(makeLocal, 0) else makeLocal()
@@ -333,8 +334,6 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
     if count is 0
       return sqlCreateModelList(db, table, models, columns)
 
-  p = new Profiler()
-
   insertQuery = sqlInsertQuery(table, columns)
   replaceQuery = sqlReplaceQuery(table, columns)
   merge = options.merge
@@ -343,14 +342,14 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
     sqlUpdateModel(db, table, model, columns, merge, insertQuery, replaceQuery)
     return model.id
 
-  info 'saved', p.tick()
+  info 'saved'
 
   if options.delete
     idAttribute = models[0].idAttribute
     deleteQuery = sqlDeleteNotIn(table, idAttribute, ids.length)
     db.execute(deleteQuery, ids)
 
-  info 'remove old', p.tick()
+  info 'remove old'
 
 
 sqlDeleteAll = (db, table) ->
