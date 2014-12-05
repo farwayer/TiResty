@@ -195,7 +195,6 @@ request = (options) ->
 localSync = (method, entity, options) ->
   table = options.collection_name
   dbName = options.db_name or ALLOY_DB_DEFAULT
-  reset = options.reset
   query = _.result(options, 'query')
   async = _.result(options, 'async')
   isCollection = entityIsCollection(entity)
@@ -295,7 +294,7 @@ sqlCreateModelList = (db, table, models, columns) ->
     db.execute(query, values)
 
 
-sqlUpdateModel = (db, table, model, columns, insertQuery, replaceQuery) ->
+sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) ->
   values = columns.map(model.get, model)
 
   # simple create if no id
@@ -306,8 +305,8 @@ sqlUpdateModel = (db, table, model, columns, insertQuery, replaceQuery) ->
   modelFields = model.keys()
   updatedFields = columns.filter (column) -> modelFields.indexOf(column) >= 0
 
-  # replace if all fields was changed (faster than upsert)
-  if updatedFields.length is columns.length
+  # replace if all fields was changed (faster than upsert) or not merge
+  if updatedFields.length is columns.length or not merge
     return db.execute(replaceQuery, values)
 
   # upsert
@@ -335,9 +334,10 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
 
   insertQuery = sqlInsertQuery(table, columns)
   replaceQuery = sqlReplaceQuery(table, columns)
+  merge = options.merge
 
   ids = models.map (model) ->
-    sqlUpdateModel(db, table, model, columns, insertQuery, replaceQuery)
+    sqlUpdateModel(db, table, model, columns, merge, insertQuery, replaceQuery)
     return model.id
 
   info 'saved', p.tick()
