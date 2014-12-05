@@ -46,9 +46,7 @@ remote = (method, entity, options) ->
     success?(resp, status, xhr)
 
     # remote sync was ok; save local data
-    if method is 'read'
-      reset = options.reset
-      method = if reset then 'create' else 'update'
+    method = 'update' if method is 'read'
 
     # prevent to repeat callbacks
     options.success = null
@@ -262,7 +260,11 @@ localUpdate = (entity, isCollection, dbName, table, sql, options) ->
   dbExecute dbName, yes, sql, (db, rs) ->
     return if sql # custom query was executed
 
-    sqlUpdateModelList(db, table, models, columns, options)
+    if isCollection and options.reset
+      sqlDeleteAll(db, table)
+      sqlCreateModelList(db, table, models, columns)
+    else
+      sqlUpdateModelList(db, table, models, columns, options)
 
   # update collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
