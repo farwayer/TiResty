@@ -307,7 +307,7 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
   modelFields = model.keys()
   updatedFields = columns.filter (column) -> modelFields.indexOf(column) >= 0
 
-  # replace if all fields was changed (faster than upsert) or not merge
+  # replace if all fields was changed or not merge (faster than upsert)
   if updatedFields.length is columns.length or not merge
     return db.execute(replaceQuery, values)
 
