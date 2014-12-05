@@ -315,6 +315,7 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
   db.execute(insertQuery, values)
   return unless db.rowsAffected is 0
 
+  # sadly we can't pre-generate update query
   updateQuery = sqlUpdateQuery(table, updatedFields, model.idAttribute)
   updatedValues = updatedFields.map(model.get, model)
   updatedValues.push(model.id)
