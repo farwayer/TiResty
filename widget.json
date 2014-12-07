@@ -1,0 +1,14 @@
+{
+	"id": "org.farwayer.ti.resty",
+	"name": "Resty",
+	"description" : "REST and SQL adapter",
+	"author": "farwayer",
+	"version": "1.0.0",
+	"copyright":"Copyright (c) 2014",
+	"license":"WTFPL",
+	"min-alloy-version": "1.5",
+	"min-titanium-version":"3.4.0",
+	"tags":"rest,sql,adapter,remote,api",
+	"platforms":"android,ios",
+	"modules": {}
+}
