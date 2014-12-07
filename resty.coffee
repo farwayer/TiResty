@@ -115,6 +115,7 @@ localFirst = (method, entity, options) ->
 remoteSync = (method, entity, options) ->
   isCollection = entityIsCollection(entity)
   rootObject = options.rootObject
+  collection = options.collection_name
   success = options.success
   error = options.error
 
@@ -125,19 +126,16 @@ remoteSync = (method, entity, options) ->
 
   options.parse = yes
 
-  collection = options.collection_name
-  info "remote #{method} '#{collection}'..."
-
-  options.success = (resp, status, xhr) ->
+  options.success = (resp) ->
     resp = rootObject(resp, options) if rootObject
-    info "remote #{method} ok in #{resp.length ? 1} values; parsing..."
-    success?(resp, status, xhr)
-    info "remote parsing complete in"
+    info "remote #{method} '#{collection}' ok; #{resp.length ? 1} values"
+    success?(resp)
 
-  options.error = (x, y, z) ->
-    info "remote #{method} failed in", x, y, z
-    error?()
+  options.error = (err) ->
+    info "remote #{method} '#{collection}' failed: #{err}"
+    error?(err)
 
+  info "remote #{method} '#{collection}'..."
   Alloy.Backbone.sync(method, entity, options)
 
 
@@ -149,8 +147,8 @@ request = (options) ->
   data = _.result(options, 'data')
   dataType = _.result(options, 'dataType')
   contentType = options.contentType
-  onError = options.error
-  onSuccess = options.success
+  error = options.error
+  success = options.success
   beforeSend = options.beforeSend
 
   xhr = Ti.Network.createHTTPClient(options)
@@ -166,7 +164,7 @@ request = (options) ->
 
   # callbacks
   xhr.onerror = (res) ->
-    onError?(this, 'http', res.error)
+    error?(res.error)
 
   xhr.onload = ->
     data = switch dataType
@@ -174,14 +172,13 @@ request = (options) ->
       when 'text' then @responseText
       when 'json'
         try JSON.parse(@responseText)
-        catch error then null
+        catch err then null
       else @responseData
 
     if data
-      onSuccess?(data, 'ok', this)
+      success?(data)
     else
-      status = if error then 'parse' else 'empty'
-      onError?(this, status, error)
+      error?(err ? "Empty response")
 
   # request
   beforeSend?(xhr)
@@ -198,12 +195,9 @@ localSync = (method, entity, options) ->
   query = _.result(options, 'query')
   async = _.result(options, 'async')
   isCollection = entityIsCollection(entity)
-
   sql = getSql(query)
 
   options.parse = no
-
-  info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
 
   makeLocal = ->
     resp = switch method
@@ -217,13 +211,12 @@ localSync = (method, entity, options) ->
         localDelete(entity, isCollection, dbName, table, sql, options)
 
     if resp
-      info "local #{method} ok in #{resp.length ? 1} values; parsing..."
-      options.success?(resp, 'local', null)
-      info "local parsing complete in"
+      info "remote #{method} '#{table}' ok; #{resp.length ? 1} values"
+      options.success?(resp)
     else
-      info "local #{method} failed in"
-      options.error?()
+      options.error?("Local #{method} '#{table}' failed.")
 
+  info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
   if async then setTimeout(makeLocal, 0) else makeLocal()
 
 
@@ -342,14 +335,10 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
     sqlUpdateModel(db, table, model, columns, merge, insertQuery, replaceQuery)
     return model.id
 
-  info 'saved'
-
   if options.delete
     idAttribute = models[0].idAttribute
     deleteQuery = sqlDeleteNotIn(table, idAttribute, ids.length)
     db.execute(deleteQuery, ids)
-
-  info 'remove old'
 
 
 sqlDeleteAll = (db, table) ->
