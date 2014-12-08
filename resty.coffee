@@ -23,7 +23,9 @@ sync = (method, entity, options={}) ->
   mode = _.result(options, 'mode')
   handler = Handlers()[mode]
 
-  info "#{Array(80).join('~')}\nsync in '#{mode}' mode"
+  info Array(60).join('~')
+  info "#{method} '#{options.collection_name}' in '#{mode}' mode"
+  info "options: #{JSON.stringify(options)}"
   handler(method, entity, options)
 
   return entity
@@ -197,7 +199,7 @@ localSync = (method, entity, options) ->
 
   options.parse = no
 
-  info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
+  info "local #{method} '#{table}': #{JSON.stringify(sql or 'default sql')} ..."
   resp = switch method
     when 'read'
       localRead(entity, isCollection, dbName, table, sql, options)
@@ -209,7 +211,7 @@ localSync = (method, entity, options) ->
       localDelete(entity, isCollection, dbName, table, sql, options)
 
   if resp
-    info "remote #{method} '#{table}' ok; #{resp.length ? 1} values"
+    info "local #{method} '#{table}' ok; #{resp.length ? 1} values"
     options.success?(resp)
   else
     options.error?("Local #{method} '#{table}' failed.")
@@ -318,7 +320,8 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
   if models.length > 1
     countQuery = sqlCountQuery(table)
     rs = db.execute(countQuery)
-    count = parseInt(rs.fieldByName('count'))
+    count = rs.fieldByName('count')
+    info count
     if count is 0
       return sqlCreateModelList(db, table, models, columns)
 
