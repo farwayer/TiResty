@@ -193,31 +193,27 @@ localSync = (method, entity, options) ->
   table = options.collection_name
   dbName = options.db_name or ALLOY_DB_DEFAULT
   query = _.result(options, 'query')
-  async = _.result(options, 'async')
   isCollection = entityIsCollection(entity)
   sql = getSql(query)
 
   options.parse = no
 
-  makeLocal = ->
-    resp = switch method
-      when 'read'
-        localRead(entity, isCollection, dbName, table, sql, options)
-      when 'create'
-        localCreate(entity, isCollection, dbName, table, sql, options)
-      when 'update'
-        localUpdate(entity, isCollection, dbName, table, sql, options)
-      when 'delete'
-        localDelete(entity, isCollection, dbName, table, sql, options)
-
-    if resp
-      info "remote #{method} '#{table}' ok; #{resp.length ? 1} values"
-      options.success?(resp)
-    else
-      options.error?("Local #{method} '#{table}' failed.")
-
   info "local #{method} '#{table}': #{JSON.stringify(sql)} ..."
-  if async then setTimeout(makeLocal, 0) else makeLocal()
+  resp = switch method
+    when 'read'
+      localRead(entity, isCollection, dbName, table, sql, options)
+    when 'create'
+      localCreate(entity, isCollection, dbName, table, sql, options)
+    when 'update'
+      localUpdate(entity, isCollection, dbName, table, sql, options)
+    when 'delete'
+      localDelete(entity, isCollection, dbName, table, sql, options)
+
+  if resp
+    info "remote #{method} '#{table}' ok; #{resp.length ? 1} values"
+    options.success?(resp)
+  else
+    options.error?("Local #{method} '#{table}' failed.")
 
 
 localRead = (entity, isCollection, dbName, table, sql, options) ->
