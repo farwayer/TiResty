@@ -335,7 +335,7 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
 
   if options.delete
     idAttribute = models[0].idAttribute
-    deleteQuery = sqlDeleteNotIn(table, idAttribute, ids.length)
+    deleteQuery = sqlDeleteNotInQuery(table, idAttribute, ids.length)
     db.execute(deleteQuery, ids)
 
 
@@ -358,7 +358,7 @@ sqlDeleteModelQuery = (table, idAttribute) ->
   "DELETE FROM #{table} WHERE #{idAttribute}=?;"
 
 
-sqlDeleteNotIn = (table, idAttribute, count) ->
+sqlDeleteNotInQuery = (table, idAttribute, count) ->
   sqlQ = sqlQList(count)
 
   "DELETE FROM #{table} WHERE #{idAttribute} NOT IN #{sqlQ}"
