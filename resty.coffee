@@ -13,11 +13,10 @@ Handlers = _.once ->
 
 
 sync = (method, entity, options={}) ->
-  options = _.clone(options)
   adapter = _.clone(entity.config.adapter)
   delete adapter.type # prevent shadow backbone http type
-  options = _.extend(adapter, options)
-  options = _.defaults options,
+  _.defaults(options, adapter)
+  _.defaults options,
     delete: yes, merge: yes, reset: no
     mode: 'RemoteFirst'
 
