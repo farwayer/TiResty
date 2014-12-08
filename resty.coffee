@@ -255,7 +255,7 @@ localUpdate = (entity, isCollection, dbName, table, sql, options) ->
       sqlDeleteAll(db, table)
       sqlCreateModelList(db, table, models, columns)
     else
-      sqlUpdateModelList(db, table, models, columns, options)
+      sqlUpdateModelList(db, table, models, columns, isCollection, options)
 
   # update collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
@@ -314,14 +314,13 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
   db.execute(updateQuery, updatedValues)
 
 
-sqlUpdateModelList = (db, table, models, columns, options) ->
+sqlUpdateModelList = (db, table, models, columns, isCollection, options) ->
   return if models.length is 0
 
   if models.length > 1
     countQuery = sqlCountQuery(table)
     rs = db.execute(countQuery)
     count = rs.fieldByName('count')
-    info count
     if count is 0
       return sqlCreateModelList(db, table, models, columns)
 
@@ -333,7 +332,7 @@ sqlUpdateModelList = (db, table, models, columns, options) ->
     sqlUpdateModel(db, table, model, columns, merge, insertQuery, replaceQuery)
     return model.id
 
-  if options.delete
+  if isCollection and options.delete
     idAttribute = models[0].idAttribute
     deleteQuery = sqlDeleteNotInQuery(table, idAttribute, ids.length)
     db.execute(deleteQuery, ids)
