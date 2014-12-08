@@ -129,6 +129,9 @@ remoteSync = (method, entity, options) ->
 
   options.success = (resp) ->
     resp = rootObject(resp, options) if rootObject
+    if _.isString(resp) or not resp
+      return options.error(resp)
+
     info "remote #{method} '#{collection}' ok; #{resp.length ? 1} values"
     success?(resp)
 
