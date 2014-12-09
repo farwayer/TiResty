@@ -139,7 +139,7 @@ remoteSync = (method, entity, options) ->
       return options.error(resp)
 
     count = resp.length ? 1
-    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values"
+    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values; #{JSON.stringify(resp)}"
     success?(resp)
 
   options.error = (err) ->
@@ -165,7 +165,6 @@ request = (options) ->
   xhr = Ti.Network.createHTTPClient(options)
 
   url = addUrlParams(url, urlparams)
-  info url
   xhr.open(type, url)
 
   # headers
@@ -193,6 +192,8 @@ request = (options) ->
       error?(err ? "Empty response")
 
   # request
+  info "[#{options.syncNo}] #{type} #{url}"
+
   beforeSend?(xhr)
   xhr.send(data)
 
