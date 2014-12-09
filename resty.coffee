@@ -127,9 +127,9 @@ remoteSync = (method, entity, options) ->
   error = options.error
 
   if isCollection
-    entity.url or= options.url
+    entity.url or= options.urlRoot
   else
-    entity.urlRoot or= options.url
+    entity.urlRoot or= options.urlRoot
 
   options.parse = yes
 
@@ -165,6 +165,7 @@ request = (options) ->
   xhr = Ti.Network.createHTTPClient(options)
 
   url = addUrlParams(url, urlparams)
+  info url
   xhr.open(type, url)
 
   # headers
