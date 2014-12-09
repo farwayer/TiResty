@@ -1,5 +1,4 @@
 SQLAdapter = require('alloy/sync/sql')
-info = (args...) -> Ti.API.info(args...)
 
 
 Handlers = _.once ->
@@ -19,13 +18,19 @@ sync = (method, entity, options={}) ->
   _.defaults options,
     delete: yes, merge: yes, reset: no
     mode: 'RemoteFirst'
+  options.syncNo = requestId()
 
   mode = _.result(options, 'mode')
   handler = Handlers()[mode]
 
+  entityType = if entityIsCollection(entity) then 'collection' else 'model'
+  syncNo = options.syncNo
+  collection = options.collection_name
+
   info Array(60).join('~')
-  info "#{method} '#{options.collection_name}' in '#{mode}' mode"
+  info "[#{syncNo}*] #{method} ##{mode} '#{collection}' #{entityType}"
   info "options: #{JSON.stringify(options)}"
+
   handler(method, entity, options)
 
   return entity
@@ -117,6 +122,7 @@ remoteSync = (method, entity, options) ->
   isCollection = entityIsCollection(entity)
   rootObject = options.rootObject
   collection = options.collection_name
+  syncNo = options.syncNo
   success = options.success
   error = options.error
 
@@ -132,14 +138,15 @@ remoteSync = (method, entity, options) ->
     if _.isString(resp) or not resp
       return options.error(resp)
 
-    info "remote #{method} '#{collection}' ok; #{resp.length ? 1} values"
+    count = resp.length ? 1
+    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values"
     success?(resp)
 
   options.error = (err) ->
-    info "remote #{method} '#{collection}' failed: #{err}"
+    warn "[#{syncNo}] remote #{method} '#{collection}' failed: #{err}"
     error?(err)
 
-  info "remote #{method} '#{collection}'..."
+  info "[#{syncNo}] remote #{method} '#{collection}'..."
   Alloy.Backbone.sync(method, entity, options)
 
 
@@ -196,13 +203,16 @@ request = (options) ->
 localSync = (method, entity, options) ->
   table = options.collection_name
   dbName = options.db_name or ALLOY_DB_DEFAULT
+  syncNo = options.syncNo
   query = _.result(options, 'query')
   isCollection = entityIsCollection(entity)
   sql = getSql(query)
 
   options.parse = no
 
-  info "local #{method} '#{table}': #{JSON.stringify(sql or 'default sql')} ..."
+  sqlDebug = if sql then JSON.stringify(sql) else "default sql"
+  info "[#{syncNo}] local #{method} '#{table}': #{sqlDebug} ..."
+
   resp = switch method
     when 'read'
       localRead(entity, isCollection, dbName, table, sql, options)
@@ -214,10 +224,11 @@ localSync = (method, entity, options) ->
       localDelete(entity, isCollection, dbName, table, sql, options)
 
   if resp
-    info "local #{method} '#{table}' ok; #{resp.length ? 1} values"
+    info "[#{syncNo}] local #{method} '#{table}' ok; #{resp.length ? 1} values"
     options.success?(resp)
   else
-    options.error?("Local #{method} '#{table}' failed.")
+    warn "[#{syncNo}] local #{method} '#{table}' failed"
+    options.error?("[#{syncNo}] Local #{method} '#{table}' failed.")
 
 
 localRead = (entity, isCollection, dbName, table, sql, options) ->
@@ -470,6 +481,15 @@ getSql = (query) ->
 
 entityIsCollection = (entity) ->
   entity instanceof Alloy.Backbone.Collection
+
+
+requestCounter = 0
+requestId = -> ++requestCounter
+
+
+info = (args...) -> Ti.API.info(args...)
+warn = (args...) -> Ti.API.warn(args...)
+
 
 
 if Alloy.Backbone.VERSION is '0.9.2'
