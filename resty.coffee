@@ -299,12 +299,12 @@ sqlCreateModelList = (db, table, models, columns) ->
 
   models.map (model) ->
     setRandomId(model) unless model.id
-    values = columns.map(model.get, model)
+    values = getValues(model, columns)
     db.execute(query, values)
 
 
 sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) ->
-  values = columns.map(model.get, model)
+  values = getValues(model, columns)
 
   # simple create if no id
   unless model.id
@@ -324,7 +324,7 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
 
   # sadly we can't pre-generate update query
   updateQuery = sqlUpdateQuery(table, updatedFields, model.idAttribute)
-  updatedValues = updatedFields.map(model.get, model)
+  updatedValues = getValues(model, updatedFields)
   updatedValues.push(model.id)
 
   db.execute(updateQuery, updatedValues)
@@ -483,6 +483,12 @@ getSql = (query) ->
 
 entityIsCollection = (entity) ->
   entity instanceof Alloy.Backbone.Collection
+
+
+getValues = (model, fields) ->
+  fields.map (field) ->
+    value = model.get(field)
+    if _.isObject(value) then JSON.stringify(value) else value
 
 
 requestCounter = 0
