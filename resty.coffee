@@ -495,8 +495,8 @@ requestCounter = 0
 requestId = -> ++requestCounter
 
 
-info = (args...) -> Ti.API.info(args...)
-warn = (args...) -> Ti.API.warn(args...)
+info = (args...) -> #Ti.API.info(args...)
+warn = (args...) -> #Ti.API.warn(args...)
 
 
 
