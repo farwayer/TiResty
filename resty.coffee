@@ -23,14 +23,7 @@ sync = (method, entity, options={}) ->
   mode = _.result(options, 'mode')
   handler = Handlers()[mode]
 
-  entityType = if entityIsCollection(entity) then 'collection' else 'model'
-  syncNo = options.syncNo
-  collection = options.collection_name
-
-  info Array(60).join('~')
-  info "[#{syncNo}*] #{method} ##{mode} '#{collection}' #{entityType}"
-  info "options: #{JSON.stringify(options)}"
-
+  syncDebug(method, mode, entity, options)
   handler(method, entity, options)
 
   return entity
@@ -121,8 +114,6 @@ localFirst = (method, entity, options) ->
 remoteSync = (method, entity, options) ->
   isCollection = entityIsCollection(entity)
   rootObject = options.rootObject
-  collection = options.collection_name
-  syncNo = options.syncNo
   success = options.success
   error = options.error
 
@@ -138,15 +129,14 @@ remoteSync = (method, entity, options) ->
     if _.isString(resp) or not resp
       return options.error(resp)
 
-    count = resp.length ? 1
-    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values; #{JSON.stringify(resp)}"
+    remoteSuccessDebug(method, options, resp)
     success?(resp)
 
   options.error = (err) ->
-    warn "[#{syncNo}] remote #{method} '#{collection}' failed: #{err}"
+    remoteErrorDebug(method, options)
     error?(err)
 
-  info "[#{syncNo}] remote #{method} '#{collection}'..."
+  remoteSyncDebug(method, options)
   Alloy.Backbone.sync(method, entity, options)
 
 
@@ -192,9 +182,9 @@ request = (options) ->
       error?(err ? "Empty response")
 
   # request
-  info "[#{options.syncNo}] #{type} #{url}"
-
   beforeSend?(xhr)
+
+  requestDebug(options, type, url)
   xhr.send(data)
 
   return xhr
@@ -205,15 +195,13 @@ request = (options) ->
 localSync = (method, entity, options) ->
   table = options.collection_name
   dbName = options.db_name or ALLOY_DB_DEFAULT
-  syncNo = options.syncNo
   query = _.result(options, 'query')
   isCollection = entityIsCollection(entity)
   sql = getSql(query)
 
   options.parse = no
 
-  sqlDebug = if sql then JSON.stringify(sql) else "default sql"
-  info "[#{syncNo}] local #{method} '#{table}': #{sqlDebug} ..."
+  localSyncDebug(method, options, sql, table)
 
   resp = switch method
     when 'read'
@@ -226,11 +214,11 @@ localSync = (method, entity, options) ->
       localDelete(entity, isCollection, dbName, table, sql, options)
 
   if resp
-    info "[#{syncNo}] local #{method} '#{table}' ok; #{resp.length ? 1} values"
+    localSuccessDebug(method, options, table, resp)
     options.success?(resp)
   else
-    warn "[#{syncNo}] local #{method} '#{table}' failed"
-    options.error?("[#{syncNo}] Local #{method} '#{table}' failed.")
+    localErrorDebug(method, options, table)
+    options.error?("Empty response")
 
 
 localRead = (entity, isCollection, dbName, table, sql, options) ->
@@ -495,8 +483,77 @@ requestCounter = 0
 requestId = -> ++requestCounter
 
 
-info = (args...) -> #Ti.API.info(args...)
-warn = (args...) -> #Ti.API.warn(args...)
+
+# debug
+info = (args...) -> Ti.API.info(args...)
+warn = (args...) -> Ti.API.warn(args...)
+
+
+syncDebug = (method, mode, entity, options) ->
+  if options.debug
+    collection = options.collection_name
+    entityType = if entityIsCollection(entity) then 'collection' else 'model'
+    syncNo = options.syncNo
+
+    info Array(60).join('~')
+    info "[#{syncNo}*] #{method} ##{mode} '#{collection}' #{entityType}"
+    info "options: #{JSON.stringify(options)}"
+
+
+remoteSyncDebug = (method, options) ->
+  if options.debug
+    syncNo = options.syncNo
+    collection = options.collection_name
+
+    info "[#{syncNo}] remote #{method} '#{collection}'..."
+
+
+remoteSuccessDebug = (method, options, resp) ->
+  if options.debug
+    count = resp.length ? 1
+    syncNo = options.syncNo
+    collection = options.collection_name
+
+    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values; " +
+         JSON.stringify(resp)
+
+
+remoteErrorDebug = (method, options) ->
+  if options.debug
+    syncNo = options.syncNo
+    collection = options.collection_name
+
+    warn "[#{syncNo}] remote #{method} '#{collection}' failed: #{err}"
+
+
+requestDebug = (options, type, url) ->
+  if options.debug
+    syncNo = options.syncNo
+
+    info "[#{syncNo}] #{type} #{url}"
+
+
+localSyncDebug = (method, options, sql, table) ->
+  if options.debug
+    syncNo = options.syncNo
+    sqlDebug = if sql then JSON.stringify(sql) else "default sql"
+
+    info "[#{syncNo}] local #{method} '#{table}': #{sqlDebug} ..."
+
+
+localSuccessDebug = (method, options, table, resp) ->
+  if options.debug
+    syncNo = options.syncNo
+    count = resp.length ? 1
+
+    info "[#{syncNo}] local #{method} '#{table}' ok; #{count} values"
+
+
+localErrorDebug = (method, options, table) ->
+  if options.debug
+    syncNo = options.syncNo
+
+    warn "[#{syncNo}] local #{method} '#{table}' failed"
 
 
 
