@@ -245,7 +245,7 @@ localCreate = (entity, isCollection, dbName, table, sql, options) ->
 
   # create collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
-  return if isCollection then entity else entity.toJSON()
+  if isCollection then entity else entity.toJSON()
 
 
 localUpdate = (entity, isCollection, dbName, table, sql, options) ->
@@ -263,7 +263,7 @@ localUpdate = (entity, isCollection, dbName, table, sql, options) ->
 
   # update collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
-  return if isCollection then entity.toJSON() else entity
+  if isCollection then entity.toJSON() else entity
 
 
 localDelete = (entity, isCollection, dbName, table, sql, options) ->
@@ -277,7 +277,7 @@ localDelete = (entity, isCollection, dbName, table, sql, options) ->
 
   # delete collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
-  return if isCollection then entity.toJSON() else entity
+  if isCollection then entity.toJSON() else entity
 
 
 
