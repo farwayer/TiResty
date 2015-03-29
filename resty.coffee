@@ -310,11 +310,9 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
   db.execute(insertQuery, values)
   return unless db.rowsAffected is 0
 
-  # sadly we can't pre-generate update query
   updateQuery = sqlUpdateQuery(table, updatedFields, model.idAttribute)
   updatedValues = getValues(model, updatedFields)
   updatedValues.push(model.id)
-
   db.execute(updateQuery, updatedValues)
 
 
@@ -330,6 +328,7 @@ sqlUpdateModelList = (db, table, models, columns, isCollection, options) ->
 
   insertQuery = sqlInsertQuery(table, columns)
   replaceQuery = sqlReplaceQuery(table, columns)
+  # sadly we can't pre-generate update query (columns can be variable)
   merge = options.merge
 
   ids = models.map (model) ->
@@ -363,27 +362,23 @@ sqlDeleteModelQuery = (table, idAttribute) ->
 
 sqlDeleteNotInQuery = (table, idAttribute, count) ->
   sqlQ = sqlQList(count)
-
   "DELETE FROM #{table} WHERE #{idAttribute} NOT IN #{sqlQ}"
 
 
 sqlInsertQuery = (table, columns) ->
   sqlColumns = sqlColumnList(columns)
   sqlQ = sqlQList(columns.length)
-
   "INSERT OR IGNORE INTO #{table} #{sqlColumns} VALUES #{sqlQ};"
 
 
 sqlReplaceQuery = (table, columns) ->
   sqlColumns = sqlColumnList(columns)
   sqlQ = sqlQList(columns.length)
-
   "REPLACE INTO #{table} #{sqlColumns} VALUES #{sqlQ};"
 
 
 sqlUpdateQuery = (table, columns, idAttribute) ->
   sqlSet = sqlSetList(columns)
-
   "UPDATE #{table} SET #{sqlSet} WHERE #{idAttribute}=?;"
 
 

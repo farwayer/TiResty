@@ -4,7 +4,7 @@
 	"description" : "REST and SQL adapter",
 	"author": "farwayer",
 	"version": "1.0.0",
-	"copyright":"Copyright (c) 2014",
+	"copyright":"Copyright (c) 2015",
 	"license":"WTFPL",
 	"min-alloy-version": "1.5",
 	"min-titanium-version":"3.4.0",
