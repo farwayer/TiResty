@@ -126,8 +126,8 @@ remoteSync = (method, entity, options) ->
 
   options.success = (resp) ->
     resp = rootObject(resp, options) if rootObject
-    if _.isString(resp) or not resp
-      return options.error(resp)
+    if err = checkError(resp)
+      return error?(err)
 
     remoteSuccessDebug(method, options, resp)
     success?(resp)
@@ -472,6 +472,19 @@ getValues = (model, fields) ->
   fields.map (field) ->
     value = model.get(field)
     if _.isObject(value) then JSON.stringify(value) else value
+
+
+checkError = (resp) ->
+  if toString.call(resp) is '[object Error]'
+    return resp
+
+  if _.isString(resp)
+    return new Error(resp)
+
+  if resp
+    return null
+
+  return new Error("Response is empty")
 
 
 requestCounter = 0
