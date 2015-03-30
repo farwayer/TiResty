@@ -133,7 +133,7 @@ remoteSync = (method, entity, options) ->
     success?(resp)
 
   options.error = (err) ->
-    remoteErrorDebug(method, options)
+    remoteErrorDebug(method, options, err)
     error?(err)
 
   remoteSyncDebug(method, options)
@@ -513,7 +513,7 @@ remoteSuccessDebug = (method, options, resp) ->
          JSON.stringify(resp)
 
 
-remoteErrorDebug = (method, options) ->
+remoteErrorDebug = (method, options, err) ->
   if options.debug
     syncNo = options.syncNo
     collection = options.collection_name
