@@ -1,5 +1,4 @@
 _ = require('underscore')
-
 restify = require('restify')
 
 server = restify.createServer
@@ -26,12 +25,12 @@ droids = [
 ]
 
 
-server.get '/simple', (req, res, next) ->
-  res.send(data: droids)
+server.get '/droid', (req, res, next) ->
+  res.send(droids)
   next()
 
 
-server.get '/simple/:api', (req, res, next) ->
+server.get '/droid/api/:api', (req, res, next) ->
   api = parseFloat(req.params['api'])
   if api is NaN
     res.send(message: "Api must be float number", code: "InvalidParam")
@@ -49,6 +48,18 @@ server.get '/simple/:api', (req, res, next) ->
     res.send(message: "Invalid api", code: "InvalidParam")
     next()
 
+  res.send(droid)
+  next()
+
+server.get '/droid/:id', (req, res, next) ->
+  id = parseInt(req.params['id'])
+
+  droid = _(droids).findWhere(id: id)
+  unless droid
+    res.send(message: "Invalid id", code: "InvalidParam")
+    next()
+
+  droid.name += " NEW"
   res.send(droid)
   next()
 
@@ -70,5 +81,5 @@ server.get '/new', (req, res, next) ->
 server.get '/stop', ->
   server.close()
 
-server.listen 9081, ->
+server.listen 9081, '0.0.0.0', ->
   console.log('%s listening at %s', server.name, server.url)

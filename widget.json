@@ -1,6 +1,6 @@
 {
-	"id": "org.farwayer.ti.resty",
-	"name": "Resty",
+	"id": "by.farwayer.ti.resty",
+	"name": "resty",
 	"description" : "REST and SQL adapter",
 	"author": "farwayer",
 	"version": "1.0.0",
