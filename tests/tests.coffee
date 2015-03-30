@@ -27,7 +27,7 @@ describe 'resty', ->
       droids = Alloy.createCollection('droid')
       droids.fetch
         mode: 'RemoteOnly'
-        url: droids.config.adapter.url + '/api/2.3'
+        url: droids.config.adapter.urlRoot + 'api/2.3'
         success: (droids) ->
           droids.at(0).get('name').should.be.exactly('Gingerbread')
           done()
@@ -37,7 +37,7 @@ describe 'resty', ->
       droids = Alloy.createCollection('droid')
       droids.fetch
         mode: 'RemoteOnly'
-        url: droids.config.adapter.url + '/api/1232.3'
+        url: droids.config.adapter.urlRoot + 'api/1232.3'
         success: -> done(new Error("'success' callback called - bad"))
         error: (droids, err) ->
           err.name.should.be.exactly('InvalidParam')
@@ -50,7 +50,7 @@ describe 'resty', ->
           droids.at(0).fetch
             mode: 'Remote'
             success: (model) ->
-              alert(model.get('name'))
+              model.get('name').should.endWith('NEW')
               done()
             error: (droids, err) -> done(err)
         error: (droids, err) -> done(err)

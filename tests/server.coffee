@@ -25,10 +25,21 @@ droids = [
 ]
 
 
-server.get '/droid', (req, res, next) ->
-  res.send(droids)
-  next()
+server.get '/droid/:id', (req, res, next) ->
+  id = parseInt(req.params['id'])
+  unless id
+    res.send(droids)
+    next()
+    return
 
+  droid = _(droids).findWhere(id: id)
+  unless droid
+    res.send(message: "Invalid id", code: "InvalidParam")
+    next()
+
+  droid.name += " NEW"
+  res.send(droid)
+  next()
 
 server.get '/droid/api/:api', (req, res, next) ->
   api = parseFloat(req.params['api'])
@@ -50,19 +61,6 @@ server.get '/droid/api/:api', (req, res, next) ->
 
   res.send(droid)
   next()
-
-server.get '/droid/:id', (req, res, next) ->
-  id = parseInt(req.params['id'])
-
-  droid = _(droids).findWhere(id: id)
-  unless droid
-    res.send(message: "Invalid id", code: "InvalidParam")
-    next()
-
-  droid.name += " NEW"
-  res.send(droid)
-  next()
-
 
 server.get '/randomId', (req, res, next) ->
   droidsCopy = droids[..]
