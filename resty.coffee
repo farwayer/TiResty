@@ -18,6 +18,7 @@ sync = (method, entity, options={}) ->
   _.defaults options,
     delete: yes, merge: yes, reset: no
     mode: 'RemoteFirst'
+    columns: Object.keys(entity.config.columns)
   options.syncNo = requestId()
 
   mode = _.result(options, 'mode')
@@ -234,7 +235,7 @@ localRead = (entity, isCollection, dbName, table, sql, options) ->
 
 
 localCreate = (entity, isCollection, dbName, table, sql, options) ->
-  columns = Object.keys(entity.config.columns)
+  columns = options.columns
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, sql, (db, rs) ->
@@ -249,7 +250,7 @@ localCreate = (entity, isCollection, dbName, table, sql, options) ->
 
 
 localUpdate = (entity, isCollection, dbName, table, sql, options) ->
-  columns = Object.keys(entity.config.columns)
+  columns = options.columns
   models = if isCollection then entity.models else [entity]
 
   dbExecute dbName, yes, sql, (db, rs) ->
