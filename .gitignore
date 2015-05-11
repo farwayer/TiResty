@@ -1,11 +1,11 @@
 node_modules
 .DS_Store
-Resources
+tests/testapp/Resources
+tests/testapp/build
+tests/testapp/plugins
 build.log
-build
 npm-debug.log
 .map
 Thumbs.db
 .idea
-plugins
 *.js
