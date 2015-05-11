@@ -489,13 +489,13 @@ checkError = (resp) ->
 
 
 requestCounter = 0
-requestId = -> ++requestCounter
+requestId = -> requestCounter++
 
 
 
 # debug
-info = (args...) -> Ti.API.info(args...)
-warn = (args...) -> Ti.API.warn(args...)
+info = (args...) -> Ti.API.info("[TiResty]", args...)
+warn = (args...) -> Ti.API.warn("[TiResty]", args...)
 
 
 syncDebug = (method, mode, entity, options) ->
@@ -503,8 +503,6 @@ syncDebug = (method, mode, entity, options) ->
     collection = options.collection_name
     entityType = if entityIsCollection(entity) then 'collection' else 'model'
     syncNo = options.syncNo
-
-    info Array(60).join('~')
     info "[#{syncNo}*] #{method} ##{mode} '#{collection}' #{entityType}"
     info "options: #{JSON.stringify(options)}"
 
@@ -513,7 +511,6 @@ remoteSyncDebug = (method, options) ->
   if options.debug
     syncNo = options.syncNo
     collection = options.collection_name
-
     info "[#{syncNo}] remote #{method} '#{collection}'..."
 
 
@@ -522,7 +519,6 @@ remoteSuccessDebug = (method, options, resp) ->
     count = resp.length ? 1
     syncNo = options.syncNo
     collection = options.collection_name
-
     info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values; " +
          JSON.stringify(resp)
 
@@ -531,14 +527,12 @@ remoteErrorDebug = (method, options, err) ->
   if options.debug
     syncNo = options.syncNo
     collection = options.collection_name
-
     warn "[#{syncNo}] remote #{method} '#{collection}' failed: #{err}"
 
 
 requestDebug = (options, type, url) ->
   if options.debug
     syncNo = options.syncNo
-
     info "[#{syncNo}] #{type} #{url}"
 
 
@@ -546,7 +540,6 @@ localSyncDebug = (method, options, sql, table) ->
   if options.debug
     syncNo = options.syncNo
     sqlDebug = if sql then JSON.stringify(sql) else "default sql"
-
     info "[#{syncNo}] local #{method} '#{table}': #{sqlDebug} ..."
 
 
@@ -554,14 +547,12 @@ localSuccessDebug = (method, options, table, resp) ->
   if options.debug
     syncNo = options.syncNo
     count = resp.length ? 1
-
     info "[#{syncNo}] local #{method} '#{table}' ok; #{count} values"
 
 
 localErrorDebug = (method, options, table) ->
   if options.debug
     syncNo = options.syncNo
-
     warn "[#{syncNo}] local #{method} '#{table}' failed"
 
 
