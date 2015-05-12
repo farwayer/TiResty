@@ -1,11 +1,12 @@
 require('ti-mocha')
-should = require('should')
+require('should')
 
 jsonDump = (obj) ->
   Ti.API.debug(JSON.stringify(obj, null, 2))
 
 describe 'resty', ->
   describe 'All', ->
+    Ti.API.info("Backbone version is #{Alloy.Backbone.VERSION}")
 
   describe 'RemoteOnly', ->
     it 'should end with connection error', (done) ->

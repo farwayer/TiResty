@@ -1,6 +1,7 @@
 {
   "private": true,
   "dependencies": {
+    "alloy": "~1.6.0-beta4",
     "ti-mocha": "~0.2.0",
     "should": "~6.0.1",
     "restify": "~3.0.2",
