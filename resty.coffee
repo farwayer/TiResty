@@ -300,7 +300,7 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
     setRandomId(model)
     return db.execute(insertQuery, values)
 
-  modelFields = model.keys()
+  modelFields = Object.keys(model.attributes)
   updatedFields = columns.filter (column) -> modelFields.indexOf(column) >= 0
 
   # replace if all fields was changed or not merge (faster than upsert)
