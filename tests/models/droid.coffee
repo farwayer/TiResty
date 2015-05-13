@@ -1,7 +1,7 @@
 exports.definition =
   config:
     columns:
-      id: 'int unique'
+      id: 'integer unique'
       name: 'text'
       api: 'real'
 

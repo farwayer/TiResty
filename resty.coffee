@@ -428,7 +428,7 @@ dbExecute = (dbName, transaction, sql, action) ->
 
   rs = db.execute.apply(db, sql) if sql
   result = action(db, rs)
-  rs.close() if rs
+  rs?.close()
 
   db.execute("COMMIT;") if transaction
   db.close()
