@@ -114,14 +114,16 @@ localFirst = (method, entity, options) ->
 # remote
 remoteSync = (method, entity, options) ->
   isCollection = entityIsCollection(entity)
+  urlRoot = _.result(options, 'urlRoot')
   rootObject = options.rootObject
   success = options.success
   error = options.error
 
-  if isCollection
-    entity.url or= options.urlRoot
-  else
-    entity.urlRoot or= options.urlRoot
+  if urlRoot
+    if isCollection
+      entity.url = urlRoot
+    else
+      entity.urlRoot = urlRoot
 
   options.parse = yes
 
