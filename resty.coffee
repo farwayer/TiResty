@@ -447,9 +447,8 @@ setRandomId = (model) ->
 
 
 addUrlParams = (url, urlparams) ->
-  urlparams = (for param, value of urlparams
-    "#{encodeURIComponent(param)}=#{encodeURIComponent(value)}"
-  ).join('&')
+  encode = encodeURIComponent
+  urlparams = ("#{encode(p)}=#{encode(v)}" for p, v of urlparams).join('&')
   return url unless urlparams
 
   delimiter = if url.indexOf('?') is -1 then '?' else '&'
