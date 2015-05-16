@@ -521,8 +521,8 @@ remoteSuccessDebug = (method, options, resp) ->
     count = resp.length ? 1
     syncNo = options.syncNo
     collection = options.collection_name
-    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values; " +
-         JSON.stringify(resp)
+    info "[#{syncNo}] remote #{method} '#{collection}' ok"
+    info "#{count} values: #{JSON.stringify(resp)}"
 
 
 remoteErrorDebug = (method, options, err) ->
