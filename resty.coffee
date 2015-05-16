@@ -490,8 +490,7 @@ checkError = (resp) ->
   return new Error("Response is empty")
 
 
-requestCounter = 0
-requestId = -> requestCounter++
+requestId = (-> id = 0; -> id++)()
 
 
 
