@@ -127,7 +127,12 @@ remoteSync = (method, entity, options) ->
     else
       entity.urlRoot = urlRoot
 
+  # set in backbone 0.9.2
+  Alloy.Backbone.emulateHTTP = emulateHTTP if emulateHTTP?
+  Alloy.Backbone.emulateJSON = emulateJSON if emulateJSON?
+
   options.parse = yes
+  options.attrs = _.result(options, 'attrs') # backbone 1.1.2 only
 
   options.success = (resp) ->
     resp = rootObject(resp, options) if rootObject
@@ -140,13 +145,6 @@ remoteSync = (method, entity, options) ->
   options.error = (err) ->
     remoteErrorDebug(method, options, err)
     error?(err)
-
-  # set in backbone 0.9.2
-  Alloy.Backbone.emulateHTTP = emulateHTTP if emulateHTTP?
-  Alloy.Backbone.emulateJSON = emulateJSON if emulateJSON?
-
-  # make attrs callable (backbone 1.1.2 only)
-  options.attrs = _.result(options, 'attrs')
 
   remoteSyncDebug(method, options)
   Alloy.Backbone.sync(method, entity, options)
@@ -164,18 +162,18 @@ request = (options) ->
   success = options.success
   beforeSend = options.beforeSend
 
-  xhr = Ti.Network.createHTTPClient(options)
-
   url = addUrlParams(url, urlparams)
+
+  xhr = Ti.Network.createHTTPClient(options)
   xhr.open(type, url)
 
-  # headers
   headers['Content-Type'] = contentType
   for header of headers
     value = _.result(headers, header)
     xhr.setRequestHeader(header, value) if value
 
-  # callbacks
+  beforeSend?(xhr)
+
   xhr.onerror = (res) ->
     error?(res.error)
 
@@ -192,9 +190,6 @@ request = (options) ->
       success?(data)
     else
       error?(err ? "Empty response")
-
-  # request
-  beforeSend?(xhr)
 
   requestDebug(options, type, url)
   xhr.send(data)
@@ -418,19 +413,6 @@ sqlSetList = (columns) ->
   columns.map((column) -> "#{column}=?").join()
 
 
-parseSelectResult = (rs) ->
-  fields = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
-
-  while rs.isValidRow()
-    attrs = {}
-    for i in [0...rs.fieldCount] by 1
-      attrs[fields[i]] = rs.field(i)
-    rs.next()
-    attrs
-
-
-
-# helpers
 dbExecute = (dbName, transaction, sql, action) ->
   action or= (db, rs) -> rs
 
@@ -447,6 +429,19 @@ dbExecute = (dbName, transaction, sql, action) ->
   return result
 
 
+parseSelectResult = (rs) ->
+  fields = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
+
+  while rs.isValidRow()
+    attrs = {}
+    for i in [0...rs.fieldCount] by 1
+      attrs[fields[i]] = rs.field(i)
+    rs.next()
+    attrs
+
+
+
+# helpers
 guid = ->
   Math.random().toString(36) + Math.random().toString(36)
 
