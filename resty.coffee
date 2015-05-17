@@ -19,6 +19,7 @@ sync = (method, entity, options={}) ->
     delete: yes, merge: yes, reset: no
     mode: 'RemoteFirst'
     columns: Object.keys(entity.config.columns)
+  options.attrs = _.result(options, 'attrs')
   options.syncNo = requestId()
 
   mode = _.result(options, 'mode')
