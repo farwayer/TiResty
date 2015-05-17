@@ -19,7 +19,6 @@ sync = (method, entity, options={}) ->
     delete: yes, merge: yes, reset: no
     mode: 'RemoteFirst'
     columns: Object.keys(entity.config.columns)
-  options.attrs = _.result(options, 'attrs')
   options.syncNo = requestId()
 
   mode = _.result(options, 'mode')
@@ -142,9 +141,12 @@ remoteSync = (method, entity, options) ->
     remoteErrorDebug(method, options, err)
     error?(err)
 
-  # backbone 0.9.2
+  # set in backbone 0.9.2
   Alloy.Backbone.emulateHTTP = emulateHTTP if emulateHTTP?
   Alloy.Backbone.emulateJSON = emulateJSON if emulateJSON?
+
+  # make attrs callable (backbone 1.1.2 only)
+  options.attrs = _.result(options, 'attrs')
 
   remoteSyncDebug(method, options)
   Alloy.Backbone.sync(method, entity, options)
