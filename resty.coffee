@@ -116,6 +116,8 @@ localFirst = (method, entity, options) ->
 remoteSync = (method, entity, options) ->
   isCollection = entityIsCollection(entity)
   urlRoot = _.result(options, 'urlRoot')
+  emulateHTTP = _.result(options, 'emulateHTTP')
+  emulateJSON = _.result(options, 'emulateJSON')
   rootObject = options.rootObject
   success = options.success
   error = options.error
@@ -139,6 +141,10 @@ remoteSync = (method, entity, options) ->
   options.error = (err) ->
     remoteErrorDebug(method, options, err)
     error?(err)
+
+  # backbone 0.9.2
+  Alloy.Backbone.emulateHTTP = emulateHTTP if emulateHTTP?
+  Alloy.Backbone.emulateJSON = emulateJSON if emulateJSON?
 
   remoteSyncDebug(method, options)
   Alloy.Backbone.sync(method, entity, options)
