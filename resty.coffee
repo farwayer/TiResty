@@ -114,25 +114,16 @@ localFirst = (method, entity, options) ->
 # remote
 remoteSync = (method, entity, options) ->
   isCollection = entityIsCollection(entity)
-  urlRoot = _.result(options, 'urlRoot')
-  emulateHTTP = _.result(options, 'emulateHTTP')
-  emulateJSON = _.result(options, 'emulateJSON')
   rootObject = options.rootObject
   success = options.success
   error = options.error
 
-  if urlRoot
-    if isCollection
-      entity.url = urlRoot
-    else
-      entity.urlRoot = urlRoot
-
-  # set in backbone 0.9.2
-  Alloy.Backbone.emulateHTTP = emulateHTTP if emulateHTTP?
-  Alloy.Backbone.emulateJSON = emulateJSON if emulateJSON?
+  if isCollection
+    entity.url or= options.urlRoot
+  else
+    entity.urlRoot or= options.urlRoot
 
   options.parse = yes
-  options.attrs = _.result(options, 'attrs') # backbone 1.1.2 only
 
   options.success = (resp) ->
     resp = rootObject(resp, options) if rootObject
@@ -157,23 +148,23 @@ request = (options) ->
   headers = _.result(options, 'headers') or {}
   data = _.result(options, 'data')
   dataType = _.result(options, 'dataType')
-  contentType = _.result(options, 'contentType')
+  contentType = options.contentType
   error = options.error
   success = options.success
   beforeSend = options.beforeSend
 
-  url = addUrlParams(url, urlparams)
-
   xhr = Ti.Network.createHTTPClient(options)
+
+  url = addUrlParams(url, urlparams)
   xhr.open(type, url)
 
+  # headers
   headers['Content-Type'] = contentType
   for header of headers
     value = _.result(headers, header)
     xhr.setRequestHeader(header, value) if value
 
-  beforeSend?(xhr)
-
+  # callbacks
   xhr.onerror = (res) ->
     error?(res.error)
 
@@ -190,6 +181,9 @@ request = (options) ->
       success?(data)
     else
       error?(err ? "Empty response")
+
+  # request
+  beforeSend?(xhr)
 
   requestDebug(options, type, url)
   xhr.send(data)
@@ -250,7 +244,7 @@ localCreate = (entity, isCollection, dbName, table, sql, options) ->
     sqlDeleteAll(db, table) if isCollection
     sqlCreateModelList(db, table, models, columns)
 
-  # creating collection is a direct `sync` that was called without backbone
+  # create collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   if isCollection then entity else entity.toJSON()
 
@@ -268,7 +262,7 @@ localUpdate = (entity, isCollection, dbName, table, sql, options) ->
     else
       sqlUpdateModelList(db, table, models, columns, isCollection, options)
 
-  # updating collection is a direct `sync` that was called without backbone
+  # update collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   if isCollection then entity.toJSON() else entity
 
@@ -282,7 +276,7 @@ localDelete = (entity, isCollection, dbName, table, sql, options) ->
     else
       sqlDeleteModel(db, table, entity)
 
-  # removing collection is a direct `sync` that was called without backbone
+  # delete collection is a direct `sync` that was called without backbone
   # return entity so callback will get valid model param
   if isCollection then entity.toJSON() else entity
 
@@ -306,7 +300,7 @@ sqlUpdateModel = (db, table, model, columns, merge, insertQuery, replaceQuery) -
     setRandomId(model)
     return db.execute(insertQuery, values)
 
-  modelFields = Object.keys(model.attributes)
+  modelFields = model.keys()
   updatedFields = columns.filter (column) -> modelFields.indexOf(column) >= 0
 
   # replace if all fields was changed or not merge (faster than upsert)
@@ -413,22 +407,6 @@ sqlSetList = (columns) ->
   columns.map((column) -> "#{column}=?").join()
 
 
-dbExecute = (dbName, transaction, sql, action) ->
-  action or= (db, rs) -> rs
-
-  db = Ti.Database.open(dbName)
-  db.execute("BEGIN;") if transaction
-
-  rs = db.execute.apply(db, sql) if sql
-  result = action(db, rs)
-  rs?.close()
-
-  db.execute("COMMIT;") if transaction
-  db.close()
-
-  return result
-
-
 parseSelectResult = (rs) ->
   fields = (rs.fieldName(i) for i in [0...rs.fieldCount] by 1)
 
@@ -442,6 +420,22 @@ parseSelectResult = (rs) ->
 
 
 # helpers
+dbExecute = (dbName, transaction, sql, action) ->
+  action or= (db, rs) -> rs
+
+  db = Ti.Database.open(dbName)
+  db.execute("BEGIN;") if transaction
+
+  rs = db.execute.apply(db, sql) if sql
+  result = action(db, rs)
+  rs.close() if rs
+
+  db.execute("COMMIT;") if transaction
+  db.close()
+
+  return result
+
+
 guid = ->
   Math.random().toString(36) + Math.random().toString(36)
 
@@ -451,8 +445,9 @@ setRandomId = (model) ->
 
 
 addUrlParams = (url, urlparams) ->
-  encode = encodeURIComponent
-  urlparams = ("#{encode(p)}=#{encode(v)}" for p, v of urlparams).join('&')
+  urlparams = (for param, value of urlparams
+    "#{encodeURIComponent(param)}=#{encodeURIComponent(value)}"
+  ).join('&')
   return url unless urlparams
 
   delimiter = if url.indexOf('?') is -1 then '?' else '&'
@@ -493,13 +488,14 @@ checkError = (resp) ->
   return new Error("Response is empty")
 
 
-requestId = (-> id = 0; -> id++)()
+requestCounter = 0
+requestId = -> ++requestCounter
 
 
 
 # debug
-info = (args...) -> Ti.API.info("[TiResty]", args...)
-warn = (args...) -> Ti.API.warn("[TiResty]", args...)
+info = (args...) -> Ti.API.info(args...)
+warn = (args...) -> Ti.API.warn(args...)
 
 
 syncDebug = (method, mode, entity, options) ->
@@ -507,6 +503,8 @@ syncDebug = (method, mode, entity, options) ->
     collection = options.collection_name
     entityType = if entityIsCollection(entity) then 'collection' else 'model'
     syncNo = options.syncNo
+
+    info Array(60).join('~')
     info "[#{syncNo}*] #{method} ##{mode} '#{collection}' #{entityType}"
     info "options: #{JSON.stringify(options)}"
 
@@ -515,6 +513,7 @@ remoteSyncDebug = (method, options) ->
   if options.debug
     syncNo = options.syncNo
     collection = options.collection_name
+
     info "[#{syncNo}] remote #{method} '#{collection}'..."
 
 
@@ -523,20 +522,23 @@ remoteSuccessDebug = (method, options, resp) ->
     count = resp.length ? 1
     syncNo = options.syncNo
     collection = options.collection_name
-    info "[#{syncNo}] remote #{method} '#{collection}' ok"
-    info "#{count} values: #{JSON.stringify(resp)}"
+
+    info "[#{syncNo}] remote #{method} '#{collection}' ok; #{count} values; " +
+         JSON.stringify(resp)
 
 
 remoteErrorDebug = (method, options, err) ->
   if options.debug
     syncNo = options.syncNo
     collection = options.collection_name
+
     warn "[#{syncNo}] remote #{method} '#{collection}' failed: #{err}"
 
 
 requestDebug = (options, type, url) ->
   if options.debug
     syncNo = options.syncNo
+
     info "[#{syncNo}] #{type} #{url}"
 
 
@@ -544,6 +546,7 @@ localSyncDebug = (method, options, sql, table) ->
   if options.debug
     syncNo = options.syncNo
     sqlDebug = if sql then JSON.stringify(sql) else "default sql"
+
     info "[#{syncNo}] local #{method} '#{table}': #{sqlDebug} ..."
 
 
@@ -551,12 +554,14 @@ localSuccessDebug = (method, options, table, resp) ->
   if options.debug
     syncNo = options.syncNo
     count = resp.length ? 1
+
     info "[#{syncNo}] local #{method} '#{table}' ok; #{count} values"
 
 
 localErrorDebug = (method, options, table) ->
   if options.debug
     syncNo = options.syncNo
+
     warn "[#{syncNo}] local #{method} '#{table}' failed"
 
 
