@@ -1,12 +1,11 @@
 # TiResty [![Appcelerator Titanium](http://www-static.appcelerator.com/badges/titanium-git-badge-sq.png)](http://appcelerator.com/titanium/) [![Appcelerator Alloy](http://www-static.appcelerator.com/badges/alloy-git-badge-sq.png)](http://www.appcelerator.com/)
 
- REST [Alloy adapter](http://docs.appcelerator.com/titanium/3.0/#!/guide/Alloy_Sync_Adapters_and_Migrations-section-36739597_AlloySyncAdaptersandMigrations-SyncAdapters) which can syncing with local SQLite database. It was developed to be as **simple and fast** as possible. There is no SQL sugar, http cache system etc.
+ REST [Alloy adapter](http://docs.appcelerator.com/titanium/3.0/#!/guide/Alloy_Sync_Adapters_and_Migrations-section-36739597_AlloySyncAdaptersandMigrations-SyncAdapters) which can syncing with local SQLite database. It was developed to be as **simple and fast** as possible. There is no SQL sugar (you can use [squel](https://github.com/hiddentao/squel)), http cache system etc.
+ Maybe you better want to use [napp.alloy.adapter.restsql](https://github.com/viezel/napp.alloy.adapter.restsql) if you will not have any performance issues with it.
 
-## Get it [![gitTio](http://gitt.io/badge.svg)](http://gitt.io/component/org.farwayer.ti.resty)
+## Get it
 
-Download latest release archive and put `resty.js` in `app/assets/alloy/sync/` or `app/lib/alloy/sync`, or simply use the [gitTio CLI](http://gitt.io/cli):
-
-`$ gittio install org.farwayer.ti.resty`
+Download latest release archive and put `resty.js` in `app/assets/alloy/sync/` or `app/lib/alloy/sync`
 
 ## Use it
 
@@ -47,7 +46,7 @@ exports.definition = {
       collection_name: 'droid',
       idAttribute: 'id',
       mode: 'RemoteFirst',
-      urlRoot: 'http://192.168.56.1:9081/droid/'
+      urlRoot: 'http://192.168.56.1:9081/droid/',
       debug: true,
       delete: true, 
       merge: true,
